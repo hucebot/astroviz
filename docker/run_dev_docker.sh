@@ -5,9 +5,12 @@ if [ $isRunning -eq 0 ]; then
     xhost +local:docker
     docker rm ros2_teleoperation
     docker run  \
+        --gpus all \
+        --device /dev/dri \
         --name ros2_teleoperation  \
-        -e DISPLAY=$DISPLAY \
-        -v /tmp/.X11-unix:/tmp/.X11-unix \
+        --env DISPLAY=$DISPLAY \
+        --env NVIDIA_DRIVER_CAPABILITIES=all \
+        --env QTWEBENGINE_DISABLE_SANDBOX=1 \
         --env QT_X11_NO_MITSHM=1 \
         --net host \
         --ipc host \
@@ -16,6 +19,8 @@ if [ $isRunning -eq 0 ]; then
         -it \
         -v /dev:/dev \
         -v `pwd`/../:/ros2_ws/src/ros2_teleoperation \
+        -v /tmp/.X11-unix:/tmp/.X11-unix \
+        -v /run/dbus:/run/dbus \
         -w /ros2_ws \
         ros2_teleoperation:latest
 

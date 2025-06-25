@@ -1,0 +1,29 @@
+interface_configuration:
+  width: 1280
+  height: 720
+  x: 0
+  y: 0
+  language: 'en'
+
+camera_configuration:
+  topic: '/camera/image_raw'
+  width: 1280
+  height: 720
+  pan_tilt: true
+
+map_configuration:
+  topic: '/ros2_teleoperation/map'
+  width: 1280
+  height: 1280
+  precision: 0.1
+
+lidar_configuration:
+  topic: '/rslidar_points'
+  frame_id: 'rslidar'
+
+imu_configuration:
+  topic: '/ros2_teleoperation/imu'
+
+gps_configuration:
+  gps_topic: '/ros2_teleoperation/gps'
+  satelite_topic: '/ros2_teleoperation/satellite'
