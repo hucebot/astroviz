@@ -21,7 +21,7 @@ setup(
     entry_points={
         'console_scripts': [
             'teleoperation = ros2_teleoperation.main_window:main',
-            'map_window = ros2_teleoperation.map_window:main',
+            'gps_map_window = ros2_teleoperation.gps_map_window:main',
         ],
     },
 )
