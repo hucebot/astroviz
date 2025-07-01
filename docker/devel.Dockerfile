@@ -80,5 +80,12 @@ RUN pip install folium
 RUN apt install -y libasound2
 RUN apt-get update && apt-get install -y firefox
 
+RUN apt-get update && apt-get install -y \
+    python3-pip \
+    python3-opengl \
+    && pip install --no-cache-dir \
+       PyQt6 \
+       pyqtgraph
+
 
 RUN echo "source /opt/ros/humble/setup.bash" >> ~/.bashrc

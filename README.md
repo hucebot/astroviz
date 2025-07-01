@@ -6,9 +6,9 @@
 This is a ROS2 package designed for teleoperation, featuring a GPS map viewer and waypoint management. It allows users to visualize GPS data and manage waypoints for autonomous navigation. Aditionally, provides a camera viewer and a GUI to visualize the robot's state.
 
 ## Visual Overview
-| **MAP VIEWER** | **MAP VIEWER** |
+| **MAP VIEWER** | **LIDAR VIEWER** |
 |---------------------|--------------------|
-| <img src="https://github.com/CDonosoK/ros2_teleoperation/blob/main/images/map_viewer.png" alt="Static Sensors" width="400"> | <img src="https://github.com/CDonosoK/ros2_teleoperation/blob/main/images/map_viewer.png" alt="Moving Sensors" width="400"> |
+| <img src="https://github.com/CDonosoK/ros2_teleoperation/blob/main/images/map_viewer.png" alt="Static Sensors" width="400"> | <img src="https://github.com/CDonosoK/ros2_teleoperation/blob/main/images/lidar_viewer.png" alt="Moving Sensors" width="400"> |
 
 ## Support 💖
 
