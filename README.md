@@ -10,20 +10,21 @@ This is a ROS2 package designed for teleoperation, featuring a GPS map viewer an
   <tr>
     <td rowspan="2">
       <strong>MAP VIEWER</strong><br>
-      <img src="https://github.com/CDonosoK/ros2_teleoperation/blob/main/images/map_viewer.png" alt="Map Viewer" width="400">
+      <img src="https://github.com/CDonosoK/ros2_teleoperation/blob/main/images/map_viewer.png" alt="Map Viewer" height="600">
     </td>
     <td>
       <strong>LIDAR VIEWER</strong><br>
-      <img src="https://github.com/CDonosoK/ros2_teleoperation/blob/main/images/lidar_viewer.png" alt="LiDAR Viewer" width="400">
+      <img src="https://github.com/CDonosoK/ros2_teleoperation/blob/main/images/lidar_viewer.png" alt="LiDAR Viewer" height="300">
     </td>
   </tr>
   <tr>
     <td>
       <strong>IMU VIEWER</strong><br>
-      <img src="https://github.com/CDonosoK/ros2_teleoperation/blob/main/images/imu_viewer.png" alt="IMU Viewer" width="400">
+      <img src="https://github.com/CDonosoK/ros2_teleoperation/blob/main/images/imu_viewer.png" alt="IMU Viewer" height="300">
     </td>
   </tr>
 </table>
+
 ## Support 💖
 
 If you find this project helpful and want to support its ongoing development, you can buy me a coffee! Every contribution helps me dedicate more time to improving and maintaining open-source software.
