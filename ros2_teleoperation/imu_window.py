@@ -5,7 +5,7 @@ import math
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QComboBox
 )
-from PyQt6.QtGui import QPainter, QColor, QPen, QPainterPath
+from PyQt6.QtGui import QPainter, QColor, QPen, QPainterPath, QFont
 from PyQt6.QtCore import Qt, QRect, QRectF, QTimer
 
 import rclpy
@@ -20,8 +20,8 @@ class ArtificialHorizon(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setMinimumSize(200, 200)
-        self.roll = 0.0
-        self.pitch = 0.0
+        self.roll = 0.0 
+        self.pitch = 0.0 
 
     def set_orientation(self, roll: float, pitch: float):
         self.roll = roll
@@ -32,35 +32,79 @@ class ArtificialHorizon(QWidget):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
 
-        w = self.width()
-        h = self.height()
+        w, h = self.width(), self.height()
         size = min(w, h)
-        size_i = int(size)
-        x0 = (w - size_i) // 2
-        y0 = (h - size_i) // 2
-        rect = QRect(x0, y0, size_i, size_i)
+        r_full = size / 2
+        margin = 30
+        r = r_full - margin 
+        cx, cy = w / 2, h / 2
 
-        pitch_offset = (self.pitch / (math.pi / 2)) * (size / 2)
+        size_i = int(r * 2)
+        x0, y0 = int(cx - r), int(cy - r)
+        circ_rect = QRect(x0, y0, size_i, size_i)
+
+        pitch_offset = (self.pitch / (math.pi / 2)) * r
 
         path = QPainterPath()
-        path.addEllipse(QRectF(rect))
-
-
+        path.addEllipse(QRectF(circ_rect))
         painter.save()
         painter.setClipPath(path)
-        painter.translate(w / 2, h / 2 + pitch_offset)
+        painter.translate(cx, cy + pitch_offset)
         painter.rotate(-math.degrees(self.roll))
+
         painter.setPen(Qt.PenStyle.NoPen)
         painter.setBrush(QColor(135, 206, 235))
-        painter.drawRect(-size, -size, size * 2, size)
+        painter.drawRect(
+            int(-2 * r), int(-2 * r),
+            int(4 * r), int(2 * r)
+        )
+
         painter.setBrush(QColor(139, 69, 19))
-        painter.drawRect(-size, 0, size * 2, size)
+        painter.drawRect(
+            int(-2 * r), 0,
+            int(4 * r), int(2 * r)
+        )
         painter.restore()
 
-        pen = QPen(Qt.GlobalColor.black, 3)
+        pen = QPen(Qt.GlobalColor.white, 3)
         painter.setPen(pen)
         painter.setBrush(Qt.BrushStyle.NoBrush)
-        painter.drawEllipse(rect)
+        painter.drawEllipse(circ_rect)
+
+        painter.setPen(QPen(Qt.GlobalColor.white, 2))
+        font = QFont()
+        font.setPointSize(8)
+        painter.setFont(font)
+        for deg in range(-90, 91, 10):
+            ang = math.radians(deg - math.degrees(self.roll))
+            outer = r + 8
+            inner = r - 8
+            x1 = cx + math.sin(ang) * outer
+            y1 = cy - math.cos(ang) * outer
+            x2 = cx + math.sin(ang) * inner
+            y2 = cy - math.cos(ang) * inner
+            painter.drawLine(int(x1), int(y1), int(x2), int(y2))
+
+            text_r = r + 18
+            tx = cx + math.sin(ang) * text_r
+            ty = cy - math.cos(ang) * text_r
+            painter.drawText(int(tx) - 10, int(ty) + 4, f"{abs(deg)}°")
+
+
+        painter.setPen(QPen(Qt.GlobalColor.white, 4))
+        bar_len = r * 0.6
+        y_bar = cy + pitch_offset
+        painter.drawLine(
+            int(cx - bar_len), int(y_bar),
+            int(cx + bar_len), int(y_bar)
+        )
+
+        painter.setPen(Qt.GlobalColor.white)
+        painter.drawText(
+            int(cx) - 20,
+            int(y_bar) - 10,
+            f"{math.degrees(self.pitch):.0f}°"
+        )
 
 
 class MainWindow(QMainWindow):
@@ -69,6 +113,7 @@ class MainWindow(QMainWindow):
         self.node = node
         self.setWindowTitle('IMU - ROS2 Artificial Horizon')
         self.setGeometry(100, 100, 400, 400)
+        self.setFixedSize(400, 400)
 
         central = QWidget()
         self.setCentralWidget(central)
