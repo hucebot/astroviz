@@ -24,6 +24,7 @@ setup(
             'gps_map_window = ros2_teleoperation.gps_map_window:main',
             'camera_window = ros2_teleoperation.camera_window:main',
             'lidar_window = ros2_teleoperation.lidar_window:main',
+            'imu_window = ros2_teleoperation.imu_window:main',
         ],
     },
 )

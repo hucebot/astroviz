@@ -12,6 +12,7 @@ from PyQt6.QtWidgets import QApplication, QMainWindow, QVBoxLayout, QWidget, QCo
 from PyQt6.QtCore import QTimer
 import pyqtgraph.opengl as gl
 
+from ros2_teleoperation.utils.window_style import WindowStyle
 
 class LiDARViewer(QMainWindow):
     def __init__(self, node: Node):
@@ -150,6 +151,7 @@ def main(args=None):
     rclpy.init(args=args)
     node = rclpy.create_node('lidar_viewer')
     app = QApplication(sys.argv)
+    WindowStyle(app)
     viewer = LiDARViewer(node)
     viewer.show()
     app.exec()
