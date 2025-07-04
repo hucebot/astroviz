@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import sys
+import threading
 
 import rclpy
 from rclpy.node import Node
@@ -8,40 +9,62 @@ from sensor_msgs.msg import PointCloud2
 import sensor_msgs_py.point_cloud2 as pc2
 
 import numpy as np
-from PyQt6.QtWidgets import QApplication, QMainWindow, QVBoxLayout, QWidget, QComboBox
+from PyQt6.QtWidgets import (
+    QApplication, QMainWindow, QWidget,
+    QVBoxLayout, QComboBox, QPushButton
+)
 from PyQt6.QtCore import QTimer
 import pyqtgraph.opengl as gl
+import pyqtgraph as pg
 
 from ros2_teleoperation.utils.window_style import WindowStyle
 
 class LiDARViewer(QMainWindow):
+    def showEvent(self, event):
+        super().showEvent(event)
+
+        self._position_overlays()
+
+    
     def __init__(self, node: Node):
         super().__init__()
         self.node = node
         self.setWindowTitle("LiDAR Viewer")
         self.resize(800, 600)
 
+        qos = QoSProfile(depth=1, reliability=ReliabilityPolicy.BEST_EFFORT)
+        self.cloud_sub = None
+        self._xyz = np.empty((0, 3), dtype=np.float32)
+
         widget = QWidget()
         self.setCentralWidget(widget)
         layout = QVBoxLayout(widget)
+        layout.setContentsMargins(0,0,0,0)
 
         self.gl_widget = gl.GLViewWidget()
         self.gl_widget.opts['distance'] = 30
         layout.addWidget(self.gl_widget)
 
+        self._mousePress = self.gl_widget.mousePressEvent
+        self._mouseMove = self.gl_widget.mouseMoveEvent
+        self._mouseWheel = self.gl_widget.wheelEvent
+
         self.combo = QComboBox(self.gl_widget)
         self.combo.setFixedWidth(160)
         self.combo.raise_()
-        self.combo.move(self.gl_widget.width() - self.combo.width() - 2, 2)
         self.combo.currentTextChanged.connect(self.change_topic)
 
-        self.cloud_sub = None
-        self._xyz = np.empty((0, 3), dtype=np.float32)
+        self.btn_2d = QPushButton("2D", self.gl_widget)
+        self.btn_2d.setCheckable(True)
+        self.btn_2d.raise_()
+        self.btn_2d.clicked.connect(self.toggle_2d_view)
+
+        self._position_overlays()
 
         self._populate_topics()
 
         grid = gl.GLGridItem()
-        grid.scale(1, 1, 1)
+        grid.scale(1,1,1)
         self.gl_widget.addItem(grid)
         self.scatter = gl.GLScatterPlotItem(size=2.0, pxMode=True)
         self.gl_widget.addItem(self.scatter)
@@ -58,91 +81,91 @@ class LiDARViewer(QMainWindow):
         self.topic_timer.timeout.connect(self._populate_topics)
         self.topic_timer.start(1000)
 
-    def showEvent(self, event):
-        super().showEvent(event)
-        self._reposition_combo()
-
     def resizeEvent(self, event):
         super().resizeEvent(event)
-        self._reposition_combo()
+        self._position_overlays()
 
-    def _reposition_combo(self):
-        margin = 2
-        x = self.gl_widget.width() - self.combo.width() - margin
+    def _position_overlays(self):
+        margin = 5
+        total = self.combo.width() + self.btn_2d.width() + margin
+        x = self.gl_widget.width() - total - margin
         y = margin
         self.combo.move(x, y)
+        self.btn_2d.move(x + self.combo.width() + margin, y)
 
     def _populate_topics(self):
         current = self.combo.currentText()
         all_topics = self.node.get_topic_names_and_types()
-        pc2_topics = [name for name, types in all_topics
-                      if 'sensor_msgs/msg/PointCloud2' in types]
-
-        new_items = ['---'] + pc2_topics
-
-        old_items = [self.combo.itemText(i) for i in range(self.combo.count())]
-        if old_items == new_items:
-            return
-
-        self.combo.blockSignals(True)
-        self.combo.clear()
-        self.combo.addItems(new_items)
-
-        if current in new_items:
-            self.combo.setCurrentText(current)
-        else:
-            self.combo.setCurrentIndex(0)
-            self.change_topic('---')
-        self.combo.blockSignals(False)
+        pc2_topics = [name for name, types in all_topics if 'sensor_msgs/msg/PointCloud2' in types]
+        items = ['---'] + pc2_topics
+        if [self.combo.itemText(i) for i in range(self.combo.count())] != items:
+            self.combo.blockSignals(True)
+            self.combo.clear()
+            self.combo.addItems(items)
+            if current in items:
+                self.combo.setCurrentText(current)
+            else:
+                self.combo.setCurrentIndex(0)
+                self.change_topic('---')
+            self.combo.blockSignals(False)
 
     def change_topic(self, topic_name: str):
-        if self.cloud_sub is not None:
-            try:
-                self.node.destroy_subscription(self.cloud_sub)
-            except Exception:
-                pass
+        if self.cloud_sub:
+            try: self.node.destroy_subscription(self.cloud_sub)
+            except: pass
             self.cloud_sub = None
-
         if topic_name == '---':
-            self._xyz = np.empty((0, 3), dtype=np.float32)
+            self._xyz = np.empty((0,3), dtype=np.float32)
         else:
             qos = QoSProfile(depth=1, reliability=ReliabilityPolicy.BEST_EFFORT)
             self.cloud_sub = self.node.create_subscription(
-                PointCloud2, topic_name, self.pc_callback, qos_profile=qos
-            )
-            self._xyz = np.empty((0, 3), dtype=np.float32)
+                PointCloud2, topic_name, self.pc_callback, qos_profile=qos)
+            self._xyz = np.empty((0,3), dtype=np.float32)
 
     def pc_callback(self, msg: PointCloud2):
-        gen = pc2.read_points(msg, field_names=('x','y','z'), skip_nans=True)
-        pts = [(p[0], p[1], p[2]) for p in gen]
-        if not pts:
-            return
-
-        xyz = np.array(pts, dtype=np.float32)
+        xyz = np.fromiter(
+            ((p[0], p[1], p[2]) for p in pc2.read_points(msg, field_names=('x','y','z'), skip_nans=True)),
+            dtype=np.dtype([('x', 'f4'), ('y', 'f4'), ('z', 'f4')])
+        ).view(np.float32).reshape(-1, 3)
         if xyz.shape[0] > 100_000:
-            idx = np.linspace(0, xyz.shape[0] - 1, 100_000, dtype=int)
+            idx = np.linspace(0, xyz.shape[0]-1, 100_000, dtype=int)
             xyz = xyz[idx]
         self._xyz = xyz
 
     def _refresh(self):
-        data = self._xyz
-        if data.size == 0:
-            self.scatter.setData(pos=np.empty((0, 3), dtype=np.float32))
+        if self._xyz.size == 0:
+            self.scatter.setData(pos=np.empty((0,3), dtype=np.float32))
             return
+        if hasattr(self, '_last_shape') and self._xyz.shape == self._last_shape:
+            return
+        self._last_shape = self._xyz.shape
+        z = self._xyz[:,2]
+        norm = (z - z.min())/(z.ptp()+1e-6)
+        colors = np.empty((norm.size,4), dtype=np.float32)
+        colors[:,0] = 1 - norm
+        colors[:,1] = norm
+        colors[:,2] = 0.2
+        colors[:,3] = 1.0
+        self.scatter.setData(pos=self._xyz, color=colors)
 
-        z = data[:, 2]
-        norm = (z - z.min()) / (z.ptp() + 1e-6)
-
-        colors = np.empty((norm.size, 4), dtype=np.float32)
-        colors[:, 0] = 1.0 - norm
-        colors[:, 1] = norm
-        colors[:, 2] = 0.2
-        colors[:, 3] = 1.0
-
-        self.scatter.setData(pos=data, color=colors)
+    def toggle_2d_view(self):
+        if self.btn_2d.isChecked():
+            self.btn_2d.setStyleSheet("background-color: green; color: white;")
+            self.gl_widget.setCameraPosition(elevation=90, azimuth=0)
+            def locked_mouse_move(ev):
+                self._mouseMove(ev)
+                az = self.gl_widget.opts.get('azimuth', 0)
+                self.gl_widget.setCameraPosition(elevation=90, azimuth=az)
+            self.gl_widget.mouseMoveEvent = locked_mouse_move
+        else:
+            self.btn_2d.setStyleSheet("")
+            self.gl_widget.setCameraPosition(elevation=30, azimuth=45)
+            self.gl_widget.mouseMoveEvent = self._mouseMove
+            self.gl_widget.mousePressEvent = self._mousePress
+            self.gl_widget.wheelEvent = self._mouseWheel
 
     def closeEvent(self, event):
-        if self.cloud_sub is not None:
+        if self.cloud_sub:
             self.node.destroy_subscription(self.cloud_sub)
         return super().closeEvent(event)
 
@@ -157,7 +180,6 @@ def main(args=None):
     app.exec()
     node.destroy_node()
     rclpy.shutdown()
-
 
 if __name__ == '__main__':
     main()

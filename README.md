@@ -8,6 +8,12 @@ This is a ROS2 package designed for teleoperation, featuring a GPS map viewer an
 ## Visual Overview
 <table>
   <tr>
+    <td colspan="2" align="center">
+      <strong>DASHBOARD VIEWER</strong><br>
+      <img src="https://github.com/CDonosoK/ros2_teleoperation/blob/main/images/dashboard.gif" alt="Teleoperation Overview" width="850">
+    </td>
+  </tr>
+  <tr>
     <td rowspan="2">
       <strong>MAP VIEWER</strong><br>
       <img src="https://github.com/CDonosoK/ros2_teleoperation/blob/main/images/map_viewer.png" alt="Map Viewer" height="700" width="500">
