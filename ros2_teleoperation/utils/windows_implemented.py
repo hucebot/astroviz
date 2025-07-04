@@ -4,6 +4,7 @@ from ros2_teleoperation.imu_window import MainWindow as IMUWindow
 from ros2_teleoperation.lidar_window import LiDARViewer
 from ros2_teleoperation.teleoperation_window import TeleoperationViewer
 from ros2_teleoperation.plot_window import GraphViewer
+from ros2_teleoperation.gridmap_window import GridMapViewer
 
 VIEW_TYPES = {
     'GPS Map': GPSMapWindow,
@@ -11,5 +12,6 @@ VIEW_TYPES = {
     'IMU': IMUWindow,
     'LiDAR': LiDARViewer,
     'Teleoperation': TeleoperationViewer,
-    'System Health': GraphViewer
+    'System Health': GraphViewer,
+    'GridMap': GridMapViewer
 }

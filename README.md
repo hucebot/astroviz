@@ -81,13 +81,16 @@ sh run.sh
 ### Node Overview
 
 This package nodes that are designed to facilitate teleoperation and visualization of data. Each node serves a specific purpose in the teleoperation workflow:
-- **gps_map_viewer**: Visualizes GPS data on a map.
+- **gpsmap_viewer**: Visualizes GPS data on a map.
 - **camera_viewer**: Displays camera feed from the robot.
 - **imu_viewer**: Visualizes IMU data.
 - **lidar_viewer**: Visualizes LiDAR data.
 - **teleoperation_viewer**: Provides a GUI for teleoperation control.
 - **dashboard_viewer**: A comprehensive dashboard that integrates various data streams and provides a unified interface for monitoring and control.
 - **plot_viewer**: Displays real-time plots of various data streams.
+- **gridmap_viewer**: Visualizes grid map data for navigation and planning.
+- **robotstate_viewer**: Displays the current state of the robot, including position, orientation, and other relevant metrics.
+
 
 ### Running Nodes
 To run the nodes, you can use the following command:

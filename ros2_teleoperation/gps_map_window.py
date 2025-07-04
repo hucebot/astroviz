@@ -48,7 +48,7 @@ class GPSMapWindow(QMainWindow):
         w, h = self.get_screen_size()
         self.resize(w, h)
 
-        self.wp_pub = node.create_publisher(String, '/waypoints/json', 10)
+        self.wp_pub = node.create_publisher(String, '/gps/waypoints', 10)
 
         base = "/ros2_ws/src/ros2_teleoperation"
         self.map_dir       = os.path.join(base, "maps")
