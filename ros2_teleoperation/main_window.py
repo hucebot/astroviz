@@ -19,10 +19,9 @@ from ros2_teleoperation.imu_window import MainWindow as IMUWindow
 from ros2_teleoperation.lidar_window import LiDARViewer
 from ros2_teleoperation.teleoperation_window import TeleoperationViewer
 from ros2_teleoperation.utils.window_style import WindowStyle
-
 from ros2_teleoperation.utils.windows_implemented import VIEW_TYPES
-
 from termcolor import colored
+
 
 def _find_src_config():
     cwd = os.getcwd()
@@ -45,6 +44,7 @@ else:
     )
 os.makedirs(_CONFIG_DIR, exist_ok=True)
 CONFIG_PATH = os.path.join(_CONFIG_DIR, 'dashboard_config.json')
+
 
 class Panel(QWidget):
     def __init__(self, node: Node, initial_view: str, parent=None):
@@ -95,6 +95,7 @@ class Panel(QWidget):
         layout.addWidget(widget)
         self.current_widget = widget
 
+
 class TeleoperationDashboard(QMainWindow):
     def __init__(self, node: Node):
         super().__init__()
@@ -104,39 +105,36 @@ class TeleoperationDashboard(QMainWindow):
         self.setGeometry(100,100,1920,1080)
         self.setMinimumSize(1200,800)
 
-
         self.save_btn = QPushButton("Save Config")
         self.save_btn.clicked.connect(self.save_config)
         self.load_btn = QPushButton("Load Config")
         self.load_btn.clicked.connect(self.load_config)
+
         toolbar = QWidget()
         tlay = QHBoxLayout(toolbar)
         tlay.setContentsMargins(5,5,5,5)
         tlay.setSpacing(10)
         tlay.addWidget(self.save_btn)
         tlay.addWidget(self.load_btn)
-        tlay.addStretch(1)
 
         self.close_btn = QPushButton('✕')
         self.close_btn.setStyleSheet(
             'background-color: red; color: white; border: none; font-weight: bold;'
         )
         self.close_btn.clicked.connect(self.close)
+        tlay.addStretch(1)
         tlay.addWidget(self.close_btn)
 
-        # Create panels: TL, TR, BL, BM, BR
         self.panel_tl = Panel(node, 'GPS Map')
         self.panel_tr = Panel(node, 'LiDAR')
         self.panel_bl = Panel(node, 'Camera')
         self.panel_bm = Panel(node, 'IMU')
         self.panel_br = Panel(node, 'IMU')
 
-        # Top splitter (2 columns)
         self.top_split = QSplitter(Qt.Orientation.Horizontal)
         self.top_split.addWidget(self.panel_tl)
         self.top_split.addWidget(self.panel_tr)
         self.top_split.setSizes([960,960])
-
 
         self.bottom_split = QSplitter(Qt.Orientation.Horizontal)
         self.bottom_split.addWidget(self.panel_bl)
@@ -175,7 +173,6 @@ class TeleoperationDashboard(QMainWindow):
         }
         with open(CONFIG_PATH, 'w') as f:
             json.dump(conf, f, indent=2)
-
         self.node.get_logger().info(colored("Configuration saved successfully!", 'green'))
 
     def load_config(self):
@@ -199,11 +196,40 @@ class TeleoperationDashboard(QMainWindow):
                 self.bottom_split.setSizes(sizes['bottom'])
             if 'main' in sizes:
                 self.main_split.setSizes(sizes['main'])
-
             self.node.get_logger().info(colored("Configuration loaded successfully!", 'green'))
-
         except Exception as e:
             self.node.get_logger().error(colored(f"Failed to load config: {e}", 'red'))
+
+    def remove_view_option(self, view_name: str):
+        for panel in (self.panel_tl, self.panel_tr,
+                      self.panel_bl, self.panel_bm, self.panel_br):
+            idx = panel.combo.findText(view_name)
+            if idx != -1:
+                panel.combo.removeItem(idx)
+
+    def add_view_option(self, view_name: str):
+        if view_name not in VIEW_TYPES:
+            return
+        for panel in (self.panel_tl, self.panel_tr,
+                      self.panel_bl, self.panel_bm, self.panel_br):
+            if panel.combo.findText(view_name) == -1:
+                panel.combo.addItem(view_name)
+
+    def hide_panel(self, position: str):
+        panel = getattr(self, f'panel_{position}', None)
+        if not panel:
+            return
+        splitter = self.top_split if position in ('tl','tr') else self.bottom_split
+        splitter.removeWidget(panel)
+        panel.setParent(None)
+
+    def show_panel(self, position: str):
+        panel = getattr(self, f'panel_{position}', None)
+        if not panel:
+            return
+        splitter = self.top_split if position in ('tl','tr') else self.bottom_split
+        if panel.parent() is None:
+            splitter.addWidget(panel)
 
 
 def main(args=None):
@@ -213,12 +239,14 @@ def main(args=None):
     node = rclpy.create_node('teleoperation_node')
     dash = TeleoperationDashboard(node)
     dash.show()
+
     timer = QTimer()
     timer.timeout.connect(lambda: rclpy.spin_once(node, timeout_sec=0))
     timer.start(30)
     app.exec()
     node.destroy_node()
     rclpy.shutdown()
+
 
 if __name__ == '__main__':
     main()
