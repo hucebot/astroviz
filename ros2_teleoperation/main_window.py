@@ -24,35 +24,29 @@ class TeleoperationDashboard(QMainWindow):
         self.setGeometry(100, 100, 1920, 1080)
         self.setMinimumSize(1200, 800)
 
-        # Inicializar ventanas hijas
         self.gps_map     = GPSMapWindow(node)
         self.camera_view = CameraViewer(node)
         self.imu_view    = IMUWindow(node)
         self.lidar_view  = LiDARViewer(node)
 
-        # Ocultar ventanas propias para extraer sus widgets
         for win in [self.gps_map, self.camera_view, self.imu_view, self.lidar_view]:
             win.hide()
 
-        # Dividir horizontalmente: GPS (izquierda) y LiDAR (derecha)
         top_split = QSplitter(Qt.Orientation.Horizontal)
         top_split.addWidget(self.gps_map.centralWidget())
         top_split.addWidget(self.lidar_view.centralWidget())
         top_split.setSizes([960, 960])
 
-        # Dividir horizontalmente: Cámara (izquierda) e IMU (derecha)
         bottom_split = QSplitter(Qt.Orientation.Horizontal)
         bottom_split.addWidget(self.camera_view.centralWidget())
         bottom_split.addWidget(self.imu_view.centralWidget())
         bottom_split.setSizes([960, 960])
 
-        # Dividir verticalmente: arriba (GPS + Lidar), abajo (Camera + IMU)
         main_split = QSplitter(Qt.Orientation.Vertical)
         main_split.addWidget(top_split)
         main_split.addWidget(bottom_split)
         main_split.setSizes([540, 540])
 
-        # Contenedor principal
         container = QWidget()
         layout = QVBoxLayout(container)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -70,7 +64,6 @@ def main(args=None):
     dashboard = TeleoperationDashboard(node)
     dashboard.show()
 
-    # Spin timer for ROS
     ros_timer = QTimer()
     ros_timer.timeout.connect(lambda: rclpy.spin_once(node, timeout_sec=0))
     ros_timer.start(30)
