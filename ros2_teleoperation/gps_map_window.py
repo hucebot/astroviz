@@ -45,14 +45,11 @@ class GPSMapWindow(QMainWindow):
         self.node = node
         self.setWindowTitle("Map Viewer")
 
-        # Determine window size
         w, h = self.get_screen_size()
         self.resize(w, h)
 
-        # Publisher for waypoints
         self.wp_pub = node.create_publisher(String, '/waypoints/json', 10)
 
-        # Paths
         base = "/ros2_ws/src/ros2_teleoperation"
         self.map_dir       = os.path.join(base, "maps")
         os.makedirs(self.map_dir, exist_ok=True)
@@ -60,20 +57,17 @@ class GPSMapWindow(QMainWindow):
         self.map_html_path = os.path.join(self.map_dir, "live_map.html")
         self.icons_dir     = os.path.join(base, "icons")
 
-        # Generate HTML and start HTTP server
         self.create_map_html()
         threading.Thread(
             target=lambda: self.start_http_server(root=base, directory=base),
             daemon=True
         ).start()
 
-        # Header UI
         header = QWidget()
         h_layout = QHBoxLayout(header)
         h_layout.setContentsMargins(5, 5, 5, 5)
         h_layout.setSpacing(20)
 
-        # Satellite count
         sat_widget = QWidget()
         sat_lay = QHBoxLayout(sat_widget)
         sat_lay.setContentsMargins(0,0,0,0)
@@ -89,14 +83,12 @@ class GPSMapWindow(QMainWindow):
         sat_lay.addWidget(self.sat_label)
         h_layout.addWidget(sat_widget, alignment=Qt.AlignmentFlag.AlignLeft)
 
-        # Position label centered
         h_layout.addStretch()
         self.pos_label = QLabel("<b>Lat:</b> --, <b>Lon:</b> --")
         self.pos_label.setFont(header_font)
         h_layout.addWidget(self.pos_label, alignment=Qt.AlignmentFlag.AlignCenter)
         h_layout.addStretch()
 
-        # Buttons on right
         btn_container = QWidget()
         btn_vlay = QVBoxLayout(btn_container)
         btn_vlay.setContentsMargins(0,0,0,0)
@@ -129,11 +121,9 @@ class GPSMapWindow(QMainWindow):
 
         h_layout.addWidget(btn_container, alignment=Qt.AlignmentFlag.AlignRight)
 
-        # Web view
         self.view = QWebEngineView()
         self.view.setUrl(QUrl("http://localhost:8080/maps/live_map.html"))
 
-        # Topic selector overlay
         self.nav_combo = QComboBox(self.view)
         self.nav_combo.setFixedWidth(200)
         self.nav_combo.raise_()
@@ -148,7 +138,6 @@ class GPSMapWindow(QMainWindow):
         self.nav_timer.timeout.connect(self._populate_nav_topics)
         self.nav_timer.start(1000)
 
-        # Layout
         central = QWidget()
         v_layout = QVBoxLayout(central)
         v_layout.setContentsMargins(0,0,0,0)
@@ -156,7 +145,6 @@ class GPSMapWindow(QMainWindow):
         v_layout.addWidget(self.view, stretch=93)
         self.setCentralWidget(central)
 
-        # ROS subscriptions and timer
         node.create_subscription(Int32, '/ublox_7/sensor/satellites', self.on_sats, 10)
         self.ros_timer = QTimer(self)
         self.ros_timer.timeout.connect(lambda: rclpy.spin_once(node, timeout_sec=0))
