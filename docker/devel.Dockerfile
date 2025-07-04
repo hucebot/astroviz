@@ -1,93 +1,55 @@
 FROM nvidia/opengl:1.2-glvnd-devel-ubuntu22.04
-ENV ROS_DISTRO=humble
+LABEL maintainer="clemente.donosok@gmail.com"
 
-ENV DISPLAY=:0
-ENV LIBGL_ALWAYS_INDIRECT=0
+ENV DEBIAN_FRONTEND=noninteractive \
+    TZ=Europe/Paris \
+    ROS_DISTRO=humble \
+    DISPLAY=:0 \
+    LIBGL_ALWAYS_INDIRECT=0
 
 SHELL ["/bin/bash", "-c"]
 
-ENV DEBIAN_FRONTEND="noninteractive"
-ENV TZ="Europe/Paris"
+##### Install dependencies for the base system
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+      curl gnupg2 lsb-release ca-certificates \
+      net-tools ntpdate v4l-utils terminator xvfb firefox \
+      libgl1-mesa-dev libnss3 libx11-xcb1 libxcomposite1 libxrandr2 \
+      libxcursor1 libxdamage1 libxtst6 libglib2.0-0 libgtk-3-0 \
+      libxcb-util1 libxcb-render0 libxcb-shape0 libxcb-xfixes0 \
+      libxcb-keysyms1 libxcb-image0 libxcb-randr0 libxcb-xtest0 \
+      libxcb-cursor0 libasound2 libproj-dev libgeos-dev python3-gi-cairo && \
+    rm -rf /var/lib/apt/lists/*
 
-LABEL maintainer="clemente.donosok@gmail.com"
+##### Install python dependencies
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+      python-is-python3 python3-opengl python3-pip python3-gst-1.0 && \
+    python3 -m pip install --upgrade pip numpy==1.23.5 && \
+    python3 -m pip install --no-cache-dir \
+      v4l2py opencv-contrib-python pyserial scipy \
+      PyQt6 PyQt6-WebEngine pyqtgraph termcolor ping3 \
+      shapely cython pyshp six cartopy folium && \
+    rm -rf /var/lib/apt/lists/* ~/.cache/pip
 
-RUN apt-get update && apt-get upgrade -y
+##### Install ROS 2 Humble
+RUN export ROS_APT_SRC_VER=$(curl -s https://api.github.com/repos/ros-infrastructure/ros-apt-source/releases/latest | grep -F "tag_name" | awk -F\" '{print $4}') && \
+    curl -L -o /tmp/ros2-apt-source.deb \
+      "https://github.com/ros-infrastructure/ros-apt-source/releases/download/${ROS_APT_SRC_VER}/ros2-apt-source_${ROS_APT_SRC_VER}.$(. /etc/os-release && echo $VERSION_CODENAME)_all.deb" && \
+    dpkg -i /tmp/ros2-apt-source.deb && \
+    apt-get update && \
+    apt-get install -y --no-install-recommends \
+      ros-${ROS_DISTRO}-desktop-full \
+      ros-dev-tools \
+      ros-${ROS_DISTRO}-cv-bridge \
+      ros-${ROS_DISTRO}-rviz2 \
+      ros-${ROS_DISTRO}-rviz-imu-plugin && \
+    rosdep init && \
+    rosdep update && \
+    rm -rf /var/lib/apt/lists/* /tmp/ros2-apt-source.deb
 
-###### Install ROS2
-RUN apt-get update && apt-get upgrade -y && apt-get install -y \
-    curl \
-    gnupg2 \
-    lsb-release
+# Fuente automática de ROS en cada terminal
+RUN echo "source /opt/ros/$ROS_DISTRO/setup.bash" >> /etc/bash.bashrc
 
-RUN curl -sSL https://raw.githubusercontent.com/ros/rosdistro/master/ros.key -o /usr/share/keyrings/ros-archive-keyring.gpg
-RUN echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/ros-archive-keyring.gpg] http://packages.ros.org/ros2/ubuntu $(. /etc/os-release && echo $UBUNTU_CODENAME) main" | tee /etc/apt/sources.list.d/ros2.list > /dev/null
-RUN apt-get update && apt-get upgrade -y
-RUN apt install ros-${ROS_DISTRO}-desktop-full -y
-RUN apt install ros-dev-tools -y
-RUN rosdep init && rosdep update
-
-###### Install Python Dependencies
-RUN apt-get install -y \
-    python-is-python3 \
-    python3-gst-1.0 \
-    python3-pip
-
-RUN pip install \
-    v4l2py \
-    opencv-contrib-python \
-    pyserial \
-    scipy
-
-RUN pip install PyQt6 PyQt6-WebEngine
-
-
-RUN apt-get install -y \
-    libgl1-mesa-dev \
-    libnss3 \
-    libxcomposite1 \
-    libxrandr2 \
-    libxcursor1 \
-    libxdamage1 \
-    libxtst6 \
-    libglib2.0-0 \
-    libgtk-3-0
-
-
-RUN pip install --upgrade numpy==1.23.5
-
-###### Install ROS Dependencies
-RUN apt install -y \
-    ros-${ROS_DISTRO}-cv-bridge \
-    ros-${ROS_DISTRO}-rviz2 \
-    ros-${ROS_DISTRO}-rviz-imu-plugin
-
-###### Install Dependencies
-RUN  apt install -y \
-    net-tools \
-    ntpdate \
-    v4l-utils \
-    terminator \
-    libx11-xcb1 libxcb-util1 libxcb-render0 libxcb-shape0 \
-    libxcb-xfixes0 libxcb-keysyms1 libxcb-image0 libxcb-randr0 \
-    libxcb-xtest0 libxcb-cursor0 xvfb
-
-    
-RUN pip install shapely cython numpy pyshp six 
-RUN pip install shapely --no-binary shapely
-RUN apt-get install -y libproj-dev libgeos-dev python3-gi-cairo
-RUN pip install cartopy
-RUN pip install folium
-RUN apt install -y libasound2
-RUN apt-get update && apt-get install -y firefox
-
-RUN apt-get update && apt-get install -y \
-    python3-pip \
-    python3-opengl \
-    && pip install --no-cache-dir \
-       PyQt6 \
-       pyqtgraph \
-       termcolor \
-       ping3
-
-
-RUN echo "source /opt/ros/humble/setup.bash" >> ~/.bashrc
+WORKDIR /workspace
+CMD ["bash"]
