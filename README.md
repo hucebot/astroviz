@@ -30,22 +30,76 @@ If you find this project helpful and want to support its ongoing development, yo
 1. [Get Started](#get-started)
    - [Prerequisites](#prerequisites)
    - [Installation](#installation)
+      - [Clone the Repository](#clone-the-repository)
+      - [Build Using Docker](#build-using-docker)
+      - [Run the Docker Container](#run-the-docker-container)
 2. [Usage](#usage)
    - [Node Overview](#node-overview)
-   - [Workflow](#workflow)
    - [Running Nodes](#running-nodes)
+3. [Maintainer](#maintainer)
 3. [License](#license)
 
+---
 
 ## Get Started
 ### Prerequisites
+
+To run this package, ensure the following dependencies are installed:
+- **Git**: For version control and repository management.
+- **Docker**: To streamline the environment setup and execution.
+- **NVIDIA Container Toolkit** (if using an NVIDIA GPU): For hardware acceleration.
+
+
 ### Installation
+
+#### Clone the Repository
+Start by cloning the repository:
+```bash
+git clone git@github.com:CDonosoK/ros2_teleoperation.git
+```
+
+#### Build Using Docker
+This repository includes a pre-configured Docker setup for easy deployment. To build the Docker image:
+1. Navigate to the `docker` directory:
+   ```bash
+   cd ros2_teleoperation/docker
+   ```
+2. Run the build script:
+   ```bash
+   sh build.sh
+   ```
+   This will create a Docker image named `ros2_teleoperation`.
+
+#### Run the Docker Container
+Once built, launch the container using:
+```bash
+sh run.sh
+```
+---
 
 ## Usage
 ### Node Overview
-### Workflow
-### Running Nodes
 
+This package nodes that are designed to facilitate teleoperation and visualization of data. Each node serves a specific purpose in the teleoperation workflow:
+- **gps_map_viewer**: Visualizes GPS data on a map.
+- **camera_viewer**: Displays camera feed from the robot.
+- **imu_viewer**: Visualizes IMU data.
+- **lidar_viewer**: Visualizes LiDAR data.
+- **teleoperation_viewer**: Provides a GUI for teleoperation control.
+- **dashboard_viewer**: A comprehensive dashboard that integrates various data streams and provides a unified interface for monitoring and control.
+- **plot_viewer**: Displays real-time plots of various data streams.
+
+### Running Nodes
+To run the nodes, you can use the following command:
+```bash
+ros2 run ros2_teleoperation <node_name>
+```
+Replace `<node_name>` with the name of the node you wish to run, such as `gps_map_viewer`, `camera_viewer`, etc.
+
+Or if you prefer to run the dashboard viewer, which integrates all functionalities:
+```bash
+ros2 run ros2_teleoperation dashboard_viewer
+```
 
 ## Maintainer
 This package is maintained by:
