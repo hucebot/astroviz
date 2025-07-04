@@ -8,5 +8,4 @@ This document lists all the GUI windows currently available in the `ros2_teleope
 | LiDAR Viewer   | ![LiDAR Viewer](images/lidar_viewer.png)                              | 3D visualization of LiDAR point cloud data in real time.                    |
 | IMU Viewer     | ![IMU Viewer](images/imu_viewer.png)                                  | Shows IMU angles and accelerations in a simplified visual representation.   |
 | Camera Viewer  | ![Camera Viewer](images/camera_viewer.png) *(if exists)*              | Live feed of the robot's onboard camera for teleoperation purposes.         |
-| Dashboard GUI  | ![Dashboard](images/dashboard.gif)                                     | Integrated interface combining all available modules for unified control.   |
-| Plot Window    | ![Plot Window](images/plot_window.png)                                 | Displays real-time data from various sensors and allows for data analysis.  |
+| Plot Viewer    | ![Plot Viewer](images/plot_viewer.png)                                 | Displays real-time data from various sensors and allows for data analysis.  |
