@@ -12,7 +12,7 @@ from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget,
     QVBoxLayout, QHBoxLayout, QComboBox, QPushButton
 )
-from PyQt6.QtCore import QTimer
+from PyQt6.QtCore import QTimer, QRectF
 from PyQt6.QtGui import QFont
 
 import pyqtgraph as pg
@@ -77,7 +77,6 @@ class GridMapViewer(QMainWindow):
         self.sub = None
         self.map_info = None
         self.waypoints = []
-        # Flag para no resetear vista después de la primera imagen
         self._first_map = True
 
         self.ros_timer = QTimer(self)
@@ -115,13 +114,13 @@ class GridMapViewer(QMainWindow):
         self._first_map = True
 
         if topic_name != '---':
-            sub_qos = QoSProfile(depth=1, reliability=ReliabilityPolicy.BEST_EFFORT)
+            qos = QoSProfile(depth=1, reliability=ReliabilityPolicy.BEST_EFFORT)
             self.sub = self.node.create_subscription(
-                OccupancyGrid, topic_name, self.og_callback, sub_qos)
+                OccupancyGrid, topic_name, self.og_callback, qos)
 
     def og_callback(self, msg: OccupancyGrid):
         self.map_info = msg.info
-        h, w = msg.info.height, msg.info.width
+        h, w = self.map_info.height, self.map_info.width
         data = np.array(msg.data, dtype=np.int8).reshape((h, w))
 
         img = np.empty((h, w), dtype=np.uint8)
@@ -130,6 +129,11 @@ class GridMapViewer(QMainWindow):
         img[data ==100] =   0
 
         self.img_item.setImage(img.T, autoLevels=False)
+        orig = self.map_info.origin.position
+        res = self.map_info.resolution
+        rect = QRectF(orig.x, orig.y, w * res, h * res)
+        self.img_item.setRect(rect)
+
         if self._first_map:
             self.view_box.autoRange()
             self._first_map = False
@@ -137,10 +141,10 @@ class GridMapViewer(QMainWindow):
     def toggle_waypoint_mode(self, checked: bool):
         if checked:
             self.btn_waypoints.setStyleSheet("background-color: green; color: white;")
-            self.graph_widget.scene().sigMouseClicked.connect(self.on_click)
+            self.view_box.scene().sigMouseClicked.connect(self.on_click)
         else:
             self.btn_waypoints.setStyleSheet("")
-            self.graph_widget.scene().sigMouseClicked.disconnect(self.on_click)
+            self.view_box.scene().sigMouseClicked.disconnect(self.on_click)
 
     def _refresh_waypoints(self):
         pts = [{'x': wp[0], 'y': wp[1]} for wp in self.waypoints]
@@ -156,8 +160,7 @@ class GridMapViewer(QMainWindow):
         for idx, (wx, wy) in enumerate(self.waypoints, start=1):
             label = TextItem(str(idx), anchor=(0.5, 1.0), fill=pg.mkBrush(50,50,50,200))
             label.setColor('w')
-            font = QFont()
-            font.setPointSize(16)
+            font = QFont(); font.setPointSize(16)
             label.setFont(font)
             label.setPos(wx, wy + self.map_info.resolution * 0.1)
             self.view_box.addItem(label)
@@ -169,14 +172,12 @@ class GridMapViewer(QMainWindow):
         path_msg = Path()
         path_msg.header.stamp = self.node.get_clock().now().to_msg()
         path_msg.header.frame_id = 'map'
-        poses = []
-        for wp in self.waypoints:
-            pose_stamped = PoseStamped()
-            pose_stamped.header = path_msg.header
-            pose_stamped.pose.position = Point(x=wp[0], y=wp[1], z=0.0)
-            pose_stamped.pose.orientation.w = 1.0
-            poses.append(pose_stamped)
-        path_msg.poses = poses
+        path_msg.poses = []
+        for x, y in self.waypoints:
+            ps = PoseStamped(header=path_msg.header)
+            ps.pose.position = Point(x=x, y=y, z=0.0)
+            ps.pose.orientation.w = 1.0
+            path_msg.poses.append(ps)
         self.wp_pub.publish(path_msg)
 
     def on_click(self, event):
@@ -184,19 +185,19 @@ class GridMapViewer(QMainWindow):
             return
         pos = event.scenePos()
         mp = self.view_box.mapSceneToView(pos)
-        origin = self.map_info.origin.position
+        orig = self.map_info.origin.position
         res = self.map_info.resolution
-        threshold = res * 0.5
+        thr = res * 0.5
         for i, (wx, wy) in enumerate(self.waypoints):
-            if math.hypot(mp.x() - wx, mp.y() - wy) < threshold:
+            if math.hypot(mp.x() - wx, mp.y() - wy) < thr:
                 del self.waypoints[i]
                 self._refresh_waypoints()
                 return
-        ci = int((mp.x() - origin.x) / res)
-        cj = int((mp.y() - origin.y) / res)
+        ci = int((mp.x() - orig.x) / res)
+        cj = int((mp.y() - orig.y) / res)
         if 0 <= ci < self.map_info.width and 0 <= cj < self.map_info.height:
-            wx = origin.x + ci * res + res / 2
-            wy = origin.y + cj * res + res / 2
+            wx = orig.x + ci * res + res / 2
+            wy = orig.y + cj * res + res / 2
             self.waypoints.append((wx, wy))
             self._refresh_waypoints()
 
