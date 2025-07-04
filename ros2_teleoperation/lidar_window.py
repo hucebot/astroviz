@@ -87,11 +87,11 @@ class LiDARViewer(QMainWindow):
 
     def _position_overlays(self):
         margin = 5
-        total = self.combo.width() + self.btn_2d.width() + margin
-        x = self.gl_widget.width() - total - margin
-        y = margin
-        self.combo.move(x, y)
-        self.btn_2d.move(x + self.combo.width() + margin, y)
+        x_combo = margin
+        y_combo = margin
+        self.combo.move(x_combo, y_combo)
+        x_btn = x_combo + self.combo.width() + margin
+        self.btn_2d.move(x_btn, y_combo)
 
     def _populate_topics(self):
         current = self.combo.currentText()

@@ -113,7 +113,6 @@ class MainWindow(QMainWindow):
         self.node = node
         self.setWindowTitle('IMU - ROS2 Artificial Horizon')
         self.setGeometry(100, 100, 400, 400)
-        self.setFixedSize(400, 400)
 
         central = QWidget()
         self.setCentralWidget(central)

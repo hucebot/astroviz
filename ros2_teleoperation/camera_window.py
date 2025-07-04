@@ -5,7 +5,8 @@ import cv2
 import numpy as np
 
 from PyQt6.QtWidgets import (
-    QApplication, QMainWindow, QWidget, QVBoxLayout, QLabel, QComboBox
+    QApplication, QMainWindow, QWidget, QVBoxLayout, QLabel, QComboBox,
+    QHBoxLayout, QPushButton
 )
 from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtGui import QPixmap, QImage
@@ -24,12 +25,11 @@ class CameraViewer(QMainWindow):
         super().__init__()
         self.node = node
         self.setWindowTitle("Camera Viewer - ROS2")
-        self.setFixedSize(800, 600)
-
+        
         self.bridge = CvBridge()
         self.image_sub = None
+        self.rotation_angle = 0
 
-        # UI
         self.central = QWidget()
         self.setCentralWidget(self.central)
         self.layout = QVBoxLayout(self.central)
@@ -37,13 +37,25 @@ class CameraViewer(QMainWindow):
         self.combo = QComboBox()
         self.combo.setFixedWidth(250)
         self.combo.currentTextChanged.connect(self.change_image_topic)
-        self.layout.addWidget(self.combo, alignment=Qt.AlignmentFlag.AlignRight)
+        self.layout.addWidget(self.combo, alignment=Qt.AlignmentFlag.AlignLeft)
 
         self.image_label = QLabel("Waiting for image...")
         self.image_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.layout.addWidget(self.image_label)
 
-        # Timers
+        btn_layout = QHBoxLayout()
+        self.btn_left = QPushButton("⟲ 90° Left")
+        self.btn_left.clicked.connect(self.rotate_left)
+        btn_layout.addWidget(self.btn_left, alignment=Qt.AlignmentFlag.AlignLeft)
+
+        btn_layout.addStretch()
+
+        self.btn_right = QPushButton("90° Right ⟳")
+        self.btn_right.clicked.connect(self.rotate_right)
+        btn_layout.addWidget(self.btn_right, alignment=Qt.AlignmentFlag.AlignRight)
+
+        self.layout.addLayout(btn_layout)
+
         self.topic_timer = QTimer()
         self.topic_timer.timeout.connect(self.update_image_topics)
         self.topic_timer.start(1000)
@@ -51,6 +63,12 @@ class CameraViewer(QMainWindow):
         self.ros_timer = QTimer()
         self.ros_timer.timeout.connect(lambda: rclpy.spin_once(self.node, timeout_sec=0))
         self.ros_timer.start(30)
+
+    def rotate_left(self):
+        self.rotation_angle = (self.rotation_angle - 90) % 360
+
+    def rotate_right(self):
+        self.rotation_angle = (self.rotation_angle + 90) % 360
 
     def update_image_topics(self):
         current = self.combo.currentText()
@@ -96,6 +114,14 @@ class CameraViewer(QMainWindow):
     def image_callback(self, msg: Image):
         try:
             cv_image = self.bridge.imgmsg_to_cv2(msg, desired_encoding='bgr8')
+
+            if self.rotation_angle == 90:
+                cv_image = cv2.rotate(cv_image, cv2.ROTATE_90_CLOCKWISE)
+            elif self.rotation_angle == 180:
+                cv_image = cv2.rotate(cv_image, cv2.ROTATE_180)
+            elif self.rotation_angle == 270:
+                cv_image = cv2.rotate(cv_image, cv2.ROTATE_90_COUNTERCLOCKWISE)
+
             height, width, channel = cv_image.shape
             bytes_per_line = 3 * width
             q_image = QImage(cv_image.data, width, height, bytes_per_line, QImage.Format.Format_BGR888)

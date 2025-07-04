@@ -15,7 +15,7 @@ This is a ROS2 package designed for teleoperation, featuring a GPS map viewer an
   </tr>
 </table>
 
-For a detailed view of all implemented windows, see: [WINDOWS_IMPLEMENTED.md](WINDOWS_IMPLEMENTED.md)
+For a detailed view of all implemented windows, see: [windows implemented](WINDOWS_IMPLEMENTED.md)
 
 ## Support 💖
 

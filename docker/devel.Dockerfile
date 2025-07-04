@@ -85,7 +85,9 @@ RUN apt-get update && apt-get install -y \
     python3-opengl \
     && pip install --no-cache-dir \
        PyQt6 \
-       pyqtgraph
+       pyqtgraph \
+       termcolor \
+       ping3
 
 
 RUN echo "source /opt/ros/humble/setup.bash" >> ~/.bashrc

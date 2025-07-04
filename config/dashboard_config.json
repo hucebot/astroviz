@@ -1,0 +1,24 @@
+{
+  "views": [
+    "GPS Map",
+    "LiDAR",
+    "Camera",
+    "System Health",
+    "IMU"
+  ],
+  "splitter_sizes": {
+    "top": [
+      768,
+      1148
+    ],
+    "bottom": [
+      769,
+      743,
+      400
+    ],
+    "main": [
+      600,
+      438
+    ]
+  }
+}
