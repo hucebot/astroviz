@@ -51,5 +51,7 @@ RUN export ROS_APT_SRC_VER=$(curl -s https://api.github.com/repos/ros-infrastruc
 # Fuente automática de ROS en cada terminal
 RUN echo "source /opt/ros/$ROS_DISTRO/setup.bash" >> /etc/bash.bashrc
 
+RUN pip install --upgrade "pybind11>=2.12" "numpy<2"
+
 WORKDIR /workspace
 CMD ["bash"]
