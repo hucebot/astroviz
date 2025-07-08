@@ -284,8 +284,21 @@ class GPSMapWindow(QMainWindow):
         os.chdir(root)
         socketserver.TCPServer.allow_reuse_address = True
         handler = lambda *args, **kw: QuietHandler(*args, directory=directory, **kw)
-        with socketserver.TCPServer(("", 8080), handler) as httpd:
-            httpd.serve_forever()
+
+        for port in [8080] + list(range(8081, 8090)):
+            try:
+                httpd = socketserver.TCPServer(("", port), handler)
+                break
+            except OSError:
+                continue
+        else:
+            self.node.get_logger().error("Could not bind any port between 8080–8089")
+            return
+
+        url = f"http://localhost:{port}/maps/live_map.html"
+        QTimer.singleShot(0, lambda: self.view.setUrl(QUrl(url)))
+
+        httpd.serve_forever()
 
 
     def create_map_html(self):
