@@ -20,11 +20,11 @@ from cv_bridge import CvBridge
 from ros2_teleoperation.utils.window_style import DarkStyle
 
 
-class CameraViewer(QMainWindow):
+class GstreamerWindow(QMainWindow):
     def __init__(self, node: Node):
         super().__init__()
         self.node = node
-        self.setWindowTitle("Camera Viewer")
+        self.setWindowTitle("Gstreamer Viewer")
         
         self.bridge = CvBridge()
         self.image_sub = None
@@ -138,8 +138,8 @@ def main(args=None):
     app = QApplication(sys.argv)
     DarkStyle(app)
     
-    node = rclpy.create_node('camera_viewer')
-    window = CameraViewer(node)
+    node = rclpy.create_node('gstreamer_viewer')
+    window = GstreamerWindow(node)
     window.show()
     app.exec()
     rclpy.shutdown()

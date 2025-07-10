@@ -18,7 +18,7 @@ from ros2_teleoperation.camera_window import CameraViewer
 from ros2_teleoperation.imu_window import MainWindow as IMUWindow
 from ros2_teleoperation.lidar_window import LiDARViewer
 from ros2_teleoperation.teleoperation_window import TeleoperationViewer
-from ros2_teleoperation.utils.window_style import WindowStyle
+from ros2_teleoperation.utils.window_style import DarkStyle, LightStyle
 from ros2_teleoperation.utils.windows_implemented import VIEW_TYPES
 from termcolor import colored
 
@@ -102,7 +102,13 @@ class TeleoperationDashboard(QMainWindow):
         self.setWindowFlags(Qt.WindowType.FramelessWindowHint)
         self.node = node
         self.setWindowTitle("Teleoperation Dashboard")
-        self.setGeometry(100,100,1920,1080)
+        # take dimensions from the screen
+        screen = QApplication.primaryScreen()
+        if screen:
+            geometry = screen.geometry()
+            self.setGeometry(geometry)
+        else:
+            self.setGeometry(100,100,1920,1080)
         self.setMinimumSize(1200,800)
 
         self.save_btn = QPushButton("Save Config")
@@ -235,7 +241,7 @@ class TeleoperationDashboard(QMainWindow):
 def main(args=None):
     rclpy.init(args=args)
     app = QApplication(sys.argv)
-    WindowStyle(app)
+    LightStyle(app)
     node = rclpy.create_node('teleoperation_node')
     dash = TeleoperationDashboard(node)
     dash.show()

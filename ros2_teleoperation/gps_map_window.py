@@ -21,7 +21,7 @@ from PyQt6.QtGui import QFont, QPixmap
 from PyQt6.QtCore import Qt, QTimer, QUrl
 from PyQt6.QtWebEngineWidgets import QWebEngineView
 
-from ros2_teleoperation.utils.window_style import WindowStyle
+from ros2_teleoperation.utils.window_style import DarkStyle
 
 # Qt rendering flags for Docker
 os.environ["QTWEBENGINE_CHROMIUM_FLAGS"] = "--disable-gpu --disable-software-rasterizer"
@@ -409,7 +409,7 @@ def main(args=None):
     node = rclpy.create_node("gps_map_node")
 
     app = QApplication(sys.argv)
-    WindowStyle(app)
+    DarkStyle(app)
 
     win = GPSMapWindow(node)
     win.show()

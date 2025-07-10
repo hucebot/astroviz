@@ -12,7 +12,7 @@ from rclpy.node import Node
 from sensor_msgs.msg import Joy
 
 from ros2_teleoperation.camera_window import CameraViewer
-from ros2_teleoperation.utils.window_style import WindowStyle
+from ros2_teleoperation.utils.window_style import DarkStyle
 
 
 class JoystickWidget(QWidget):
@@ -137,7 +137,7 @@ class TeleoperationViewer(QMainWindow):
 def main(args=None):
     rclpy.init(args=args)
     app = QApplication(sys.argv)
-    WindowStyle(app)
+    DarkStyle(app)
 
     node = rclpy.create_node('teleoperation_viewer')
     win = TeleoperationViewer(node)

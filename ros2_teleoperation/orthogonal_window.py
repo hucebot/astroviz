@@ -17,9 +17,9 @@ from PyQt6.QtCore import QTimer
 import pyqtgraph.opengl as gl
 import pyqtgraph as pg
 
-from ros2_teleoperation.utils.window_style import DarkStyle, LightStyle
+from ros2_teleoperation.utils.window_style import DarkStyle
 
-class LiDARViewer(QMainWindow):
+class OrthogonalViewer(QMainWindow):
     def showEvent(self, event):
         super().showEvent(event)
 
@@ -29,7 +29,7 @@ class LiDARViewer(QMainWindow):
     def __init__(self, node: Node):
         super().__init__()
         self.node = node
-        self.setWindowTitle("LiDAR Viewer")
+        self.setWindowTitle("3D Viewer")
         self.resize(800, 600)
 
         qos = QoSProfile(depth=1, reliability=ReliabilityPolicy.BEST_EFFORT)
@@ -172,10 +172,10 @@ class LiDARViewer(QMainWindow):
 
 def main(args=None):
     rclpy.init(args=args)
-    node = rclpy.create_node('lidar_viewer')
+    node = rclpy.create_node('orthogonal_viewer')
     app = QApplication(sys.argv)
     DarkStyle(app)
-    viewer = LiDARViewer(node)
+    viewer = OrthogonalViewer(node)
     viewer.show()
     app.exec()
     node.destroy_node()

@@ -29,7 +29,7 @@ RUN apt-get update && \
     python3 -m pip install --no-cache-dir \
       v4l2py opencv-contrib-python pyserial scipy \
       PyQt6 PyQt6-WebEngine pyqtgraph termcolor ping3 \
-      shapely cython pyshp six cartopy folium && \
+      shapely cython pyshp six cartopy folium  urdfpy && \
     rm -rf /var/lib/apt/lists/* ~/.cache/pip
 
 ##### Install ROS 2 Humble

@@ -13,7 +13,7 @@ from rclpy.node import Node
 from rclpy.qos import QoSProfile
 from sensor_msgs.msg import Imu
 
-from ros2_teleoperation.utils.window_style import WindowStyle
+from ros2_teleoperation.utils.window_style import DarkStyle
 
 
 class ArtificialHorizon(QWidget):
@@ -214,7 +214,7 @@ class MainWindow(QMainWindow):
 def main(args=None):
     rclpy.init(args=args)
     app = QApplication(sys.argv)
-    WindowStyle(app)
+    DarkStyle(app)
     node = rclpy.create_node('imu_window')
     window = MainWindow(node)
     window.show()
