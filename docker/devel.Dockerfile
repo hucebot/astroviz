@@ -56,4 +56,23 @@ RUN pip install urdfpy
 
 RUN mkdir -p /ros2_ws/src
 
+RUN  apt update
+RUN  apt -q -qq update && apt install -y --allow-unauthenticated \
+  gstreamer1.0-plugins-good \ 
+  gstreamer1.0-plugins-bad \
+  gstreamer1.0-plugins-rtp \
+  gstreamer1.0-plugins-ugly \
+  gstreamer1.0-libav \
+  gstreamer1.0-tools \
+  python3-gst-1.0 \
+  libgstreamer1.0-dev \
+  net-tools curl
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      gstreamer1.0-plugins-base && \
+    # genera la registry.bin en build para no arrancar el plugin-scanner en runtime
+    gst-inspect-1.0 > /dev/null && \
+    rm -rf /var/lib/apt/lists/*
+
+
 CMD ["bash"]

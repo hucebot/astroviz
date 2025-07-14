@@ -1,149 +1,126 @@
-#!/usr/bin/env python3
-
 import sys
-import cv2
-import numpy as np
+from PyQt6.QtWidgets import QApplication, QLabel, QWidget, QGridLayout
+from PyQt6.QtCore import Qt, pyqtSignal, QObject
+from PyQt6.QtGui import QImage, QPixmap
+from PyQt6.QtCharts import QChartView, QChart, QLineSeries, QValueAxis
+from threading import Thread
+import gi
 
-from PyQt6.QtWidgets import (
-    QApplication, QMainWindow, QWidget, QVBoxLayout, QLabel, QComboBox,
-    QHBoxLayout, QPushButton
-)
-from PyQt6.QtCore import Qt, QTimer
-from PyQt6.QtGui import QPixmap, QImage
+gi.require_version('Gst', '1.0')
+from gi.repository import Gst, GLib
 
 import rclpy
-from rclpy.node import Node
-from rclpy.qos import QoSProfile
-from sensor_msgs.msg import Image
-from cv_bridge import CvBridge
 
-from ros2_teleoperation.utils.window_style import DarkStyle
+class GStreamerPipeline:
+    def __init__(self, pipeline_str, callback):
+        Gst.init(None)
+        self.pipeline = Gst.parse_launch(pipeline_str)
+        self.appsink = self.pipeline.get_by_name("appsink")
+        self.appsink.connect("new-sample", self.on_new_sample)
+        self.callback = callback
 
+    def start(self):
+        self.loop = GLib.MainLoop()
+        self.pipeline.set_state(Gst.State.PLAYING)
+        self.thread = Thread(target=self.loop.run, daemon=True)
+        self.thread.start()
 
-class GstreamerWindow(QMainWindow):
-    def __init__(self, node: Node):
+    def stop(self):
+        self.pipeline.set_state(Gst.State.NULL)
+        self.loop.quit()
+
+    def on_new_sample(self, sink):
+        sample = sink.emit("pull-sample")
+        buf = sample.get_buffer()
+        caps = sample.get_caps()
+        width = caps.get_structure(0).get_value("width")
+        height = caps.get_structure(0).get_value("height")
+        stride = 4 * width  # BGRx format
+        success, map_info = buf.map(Gst.MapFlags.READ)
+        if success:
+            data = map_info.data
+            Thread(target=self.callback, args=(width, height, stride, data), daemon=True).start()
+            buf.unmap(map_info)
+        return Gst.FlowReturn.OK
+
+class WebcamDisplay(QObject):
+    image_updated = pyqtSignal(QImage)
+    def __init__(self, label):
         super().__init__()
-        self.node = node
-        self.setWindowTitle("Gstreamer Viewer")
-        
-        self.bridge = CvBridge()
-        self.image_sub = None
-        self.rotation_angle = 0
+        self.label = label
+        self.image_updated.connect(self._update)
 
-        self.central = QWidget()
-        self.setCentralWidget(self.central)
-        self.layout = QVBoxLayout(self.central)
+    def update_image(self, w, h, stride, data):
+        img = QImage(data, w, h, stride, QImage.Format.Format_RGB32)
+        self.image_updated.emit(img)
 
-        self.combo = QComboBox()
-        self.combo.setFixedWidth(250)
-        self.combo.currentTextChanged.connect(self.change_image_topic)
-        self.layout.addWidget(self.combo, alignment=Qt.AlignmentFlag.AlignLeft)
+    def _update(self, img):
+        self.label.setPixmap(QPixmap.fromImage(img))
 
-        self.image_label = QLabel("Waiting for image...")
-        self.image_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.layout.addWidget(self.image_label)
+class MainWindow(QWidget):
+    def __init__(self):
+        super().__init__()
+        self.setWindowTitle("Main Camera with QtCharts")
+        main_layout = QGridLayout(self)
 
-        btn_layout = QHBoxLayout()
-        self.btn_left = QPushButton("⟲ 90° Left")
-        self.btn_left.clicked.connect(self.rotate_left)
-        btn_layout.addWidget(self.btn_left, alignment=Qt.AlignmentFlag.AlignLeft)
+        # Video display
+        self.camera_label = QLabel(self)
+        self.camera_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        main_layout.addWidget(self.camera_label, 0, 0)
 
-        btn_layout.addStretch()
+        # QtChart for FPS
+        self.series = QLineSeries()
+        self.chart = QChart()
+        self.chart.addSeries(self.series)
+        self.chart.createDefaultAxes()
+        self.chart.setTitle("FPS over time")
+        # Configure axes
+        self.axis_x = QValueAxis()
+        self.axis_x.setLabelFormat("%i")
+        self.axis_x.setTitleText("Frame")
+        self.axis_y = QValueAxis()
+        self.axis_y.setLabelFormat("%.1f")
+        self.axis_y.setTitleText("FPS")
+        self.chart.setAxisX(self.axis_x, self.series)
+        self.chart.setAxisY(self.axis_y, self.series)
 
-        self.btn_right = QPushButton("90° Right ⟳")
-        self.btn_right.clicked.connect(self.rotate_right)
-        btn_layout.addWidget(self.btn_right, alignment=Qt.AlignmentFlag.AlignRight)
+        self.chart_view = QChartView(self.chart, self)
+        main_layout.addWidget(self.chart_view, 0, 1)
 
-        self.layout.addLayout(btn_layout)
-
-        self.topic_timer = QTimer()
-        self.topic_timer.timeout.connect(self.update_image_topics)
-        self.topic_timer.start(1000)
-
-        self.ros_timer = QTimer()
-        self.ros_timer.timeout.connect(lambda: rclpy.spin_once(self.node, timeout_sec=0))
-        self.ros_timer.start(30)
-
-    def rotate_left(self):
-        self.rotation_angle = (self.rotation_angle - 90) % 360
-
-    def rotate_right(self):
-        self.rotation_angle = (self.rotation_angle + 90) % 360
-
-    def update_image_topics(self):
-        current = self.combo.currentText()
-        all_topics = self.node.get_topic_names_and_types()
-        image_topics = [
-            name for name, types in all_topics
-            if 'sensor_msgs/msg/Image' in types
-        ]
-        items = ['---'] + image_topics
-
-        old = [self.combo.itemText(i) for i in range(self.combo.count())]
-        if old == items:
-            return
-
-        self.combo.blockSignals(True)
-        self.combo.clear()
-        self.combo.addItems(items)
-        if current in items:
-            self.combo.setCurrentText(current)
-        else:
-            self.combo.setCurrentIndex(0)
-            self.change_image_topic('---')
-        self.combo.blockSignals(False)
-
-    def change_image_topic(self, topic_name: str):
-        if self.image_sub is not None:
-            try:
-                self.node.destroy_subscription(self.image_sub)
-            except Exception:
-                pass
-            self.image_sub = None
-
-        if topic_name == '---':
-            return
-
-        self.image_sub = self.node.create_subscription(
-            Image,
-            topic_name,
-            self.image_callback,
-            QoSProfile(depth=10)
+        # GStreamer pipeline
+        pipeline_str = (
+            "udpsrc port=5000 ! application/x-rtp, payload=96 ! rtph264depay ! avdec_h264 ! "
+            "videoconvert ! videoscale ! video/x-raw,format=BGRx,width=1510,height=1150 ! appsink name=appsink emit-signals=true async=false"
         )
+        self.display = WebcamDisplay(self.camera_label)
+        self.pipeline = GStreamerPipeline(pipeline_str, self.display.update_image)
+        self.pipeline.start()
+        self.frame_count = 0
+        self.start_time = None
 
-    def image_callback(self, msg: Image):
-        try:
-            cv_image = self.bridge.imgmsg_to_cv2(msg, desired_encoding='bgr8')
+    def closeEvent(self, event):
+        self.pipeline.stop()
+        super().closeEvent(event)
 
-            if self.rotation_angle == 90:
-                cv_image = cv2.rotate(cv_image, cv2.ROTATE_90_CLOCKWISE)
-            elif self.rotation_angle == 180:
-                cv_image = cv2.rotate(cv_image, cv2.ROTATE_180)
-            elif self.rotation_angle == 270:
-                cv_image = cv2.rotate(cv_image, cv2.ROTATE_90_COUNTERCLOCKWISE)
-
-            height, width, channel = cv_image.shape
-            bytes_per_line = 3 * width
-            q_image = QImage(cv_image.data, width, height, bytes_per_line, QImage.Format.Format_BGR888)
-            pixmap = QPixmap.fromImage(q_image)
-            self.image_label.setPixmap(pixmap.scaled(
-                self.image_label.size(), Qt.AspectRatioMode.KeepAspectRatio
-            ))
-        except Exception as e:
-            self.node.get_logger().warn(f"Image conversion failed: {e}")
+    def update_fps(self, fps_value):
+        # Call this method each frame with calculated FPS
+        self.frame_count += 1
+        self.series.append(self.frame_count, fps_value)
+        # Adjust axes range
+        self.axis_x.setRange(0, self.frame_count)
+        self.axis_y.setRange(0, max(30, fps_value))
 
 
 def main(args=None):
     rclpy.init(args=args)
     app = QApplication(sys.argv)
-    DarkStyle(app)
-    
-    node = rclpy.create_node('gstreamer_viewer')
-    window = GstreamerWindow(node)
+    app.setStyle('Fusion')
+
+    node = rclpy.create_node('gstreamer_viewer_qtcharts')
+    window = MainWindow()
     window.show()
     app.exec()
     rclpy.shutdown()
-
 
 if __name__ == '__main__':
     main()
