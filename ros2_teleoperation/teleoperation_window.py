@@ -76,7 +76,6 @@ class JoystickWidget(QWidget):
             ev.ignore()
 
     def normalized(self):
-        """Devuelve (x,y) en [-1,1], invirtiendo y para que 'up' sea positivo."""
         max_offset = self.radius - self.stick_radius
         x = self.stick_pos.x() / max_offset
         y = -self.stick_pos.y() / max_offset

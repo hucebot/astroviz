@@ -52,6 +52,8 @@ RUN export ROS_APT_SRC_VER=$(curl -s https://api.github.com/repos/ros-infrastruc
 RUN echo "source /opt/ros/$ROS_DISTRO/setup.bash" >> /etc/bash.bashrc
 
 RUN pip install --upgrade "pybind11>=2.12" "numpy<2"
+RUN pip install urdfpy 
 
-WORKDIR /workspace
+RUN mkdir -p /ros2_ws/src
+
 CMD ["bash"]

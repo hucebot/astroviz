@@ -22,6 +22,9 @@ from PyQt6.QtCore import Qt, QTimer, QUrl
 from PyQt6.QtWebEngineWidgets import QWebEngineView
 
 from ros2_teleoperation.utils.window_style import DarkStyle
+from ros2_teleoperation.utils._find import _find_pkg
+
+from ament_index_python.packages import get_package_share_directory
 
 # Qt rendering flags for Docker
 os.environ["QTWEBENGINE_CHROMIUM_FLAGS"] = "--disable-gpu --disable-software-rasterizer"
@@ -31,6 +34,14 @@ os.environ["QTWEBENGINE_DISABLE_SANDBOX"] = "1"
 # Font for header labels
 header_font = QFont()
 header_font.setPointSize(12)
+
+_pkg = _find_pkg()
+if _pkg:
+    _PKG_DIR = _pkg
+else:
+    _PKG_DIR = get_package_share_directory('ros2_teleoperation')
+
+ICONS_DIR  = os.path.join(_PKG_DIR, 'icons')
 
 class QuietHandler(http.server.SimpleHTTPRequestHandler):
     """HTTP handler that silences logs."""
@@ -50,16 +61,15 @@ class GPSMapWindow(QMainWindow):
 
         self.wp_pub = node.create_publisher(String, '/gps/waypoints', 10)
 
-        base = "/ros2_ws/src/ros2_teleoperation"
-        self.map_dir       = os.path.join(base, "maps")
+        self.map_dir       = os.path.join(_PKG_DIR, "maps")
+
         os.makedirs(self.map_dir, exist_ok=True)
         self.json_path     = os.path.join(self.map_dir, "gps_data.json")
         self.map_html_path = os.path.join(self.map_dir, "live_map.html")
-        self.icons_dir     = os.path.join(base, "icons")
 
         self.create_map_html()
         threading.Thread(
-            target=lambda: self.start_http_server(root=base, directory=base),
+            target=lambda: self.start_http_server(root=_PKG_DIR, directory=_PKG_DIR),
             daemon=True
         ).start()
 
@@ -73,7 +83,7 @@ class GPSMapWindow(QMainWindow):
         sat_lay.setContentsMargins(0,0,0,0)
         sat_lay.setSpacing(5)
         sat_icon = QLabel()
-        pix = QPixmap(os.path.join(self.icons_dir, "satellite.png"))
+        pix = QPixmap(os.path.join(ICONS_DIR, 'satellite.png'))
         sat_icon.setPixmap(
             pix.scaled(32, 32, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
         )

@@ -6,19 +6,20 @@
     "System Health",
     "IMU"
   ],
+  "actual_style": "dark",
   "splitter_sizes": {
     "top": [
-      877,
-      973
+      908,
+      1008
     ],
     "bottom": [
-      425,
-      1192,
-      229
+      440,
+      1235,
+      237
     ],
     "main": [
-      651,
-      475
+      599,
+      437
     ]
   }
 }
