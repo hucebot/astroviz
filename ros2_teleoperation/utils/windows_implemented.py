@@ -4,9 +4,9 @@ from ros2_teleoperation.imu_window import MainWindow as IMUWindow
 from ros2_teleoperation.lidar_window import LiDARViewer
 from ros2_teleoperation.teleoperation_window import TeleoperationViewer
 from ros2_teleoperation.plot_window import GraphViewer
-from ros2_teleoperation.gridmap_window import GridMapViewer
+from ros2_teleoperation.grid_map_window import GridMapViewer
 from ros2_teleoperation.orthogonal_window import OrthogonalViewer
-from ros2_teleoperation.robotstate_window import RobotStateViewer
+from ros2_teleoperation.robot_state_window import RobotStateViewer
 
 VIEW_TYPES = {
     'GPS Map': GPSMapWindow,
