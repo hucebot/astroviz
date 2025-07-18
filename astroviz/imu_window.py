@@ -13,7 +13,7 @@ from rclpy.node import Node
 from rclpy.qos import QoSProfile
 from sensor_msgs.msg import Imu
 
-from ros2_teleoperation.utils.window_style import DarkStyle
+from astroviz.utils.window_style import DarkStyle
 
 
 class ArtificialHorizon(QWidget):

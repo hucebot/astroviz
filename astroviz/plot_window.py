@@ -17,7 +17,7 @@ from ping3 import ping
 from ping3.errors import PingError
 from collections import deque
 
-from ros2_teleoperation.utils.window_style import DarkStyle
+from astroviz.utils.window_style import DarkStyle
 
 class GraphViewer(QWidget):
     def __init__(self, node: Node, parent=None):

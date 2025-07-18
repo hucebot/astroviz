@@ -1,6 +1,6 @@
 from setuptools import find_packages, setup
 
-package_name = 'ros2_teleoperation'
+package_name = 'astroviz'
 
 setup(
     name=package_name,
@@ -20,17 +20,17 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-            'dashboard_viewer = ros2_teleoperation.main_window:main',
-            'gps_map_viewer = ros2_teleoperation.gps_map_window:main',
-            'camera_viewer = ros2_teleoperation.camera_window:main',
-            'lidar_viewer = ros2_teleoperation.lidar_window:main',
-            'imu_viewer = ros2_teleoperation.imu_window:main',
-            'plot_viewer = ros2_teleoperation.plot_window:main',
-            'teleoperation_viewer = ros2_teleoperation.teleoperation_window:main',
-            'gridmap_viewer = ros2_teleoperation.grid_map_window:main',
-            'orthogonal_viewer = ros2_teleoperation.orthogonal_window:main',
-            'gstreamer_viewer = ros2_teleoperation.gstreamer_window:main',
-            'robot_state_viewer = ros2_teleoperation.robot_state_window:main',
+            'dashboard_viewer = astroviz.main_window:main',
+            'gps_map_viewer = astroviz.gps_map_window:main',
+            'camera_viewer = astroviz.camera_window:main',
+            'lidar_viewer = astroviz.lidar_window:main',
+            'imu_viewer = astroviz.imu_window:main',
+            'plot_viewer = astroviz.plot_window:main',
+            'teleoperation_viewer = astroviz.teleoperation_window:main',
+            'gridmap_viewer = astroviz.grid_map_window:main',
+            'orthogonal_viewer = astroviz.orthogonal_window:main',
+            'gstreamer_viewer = astroviz.gstreamer_window:main',
+            'robot_state_viewer = astroviz.robot_state_window:main',
         ],
     },
 )

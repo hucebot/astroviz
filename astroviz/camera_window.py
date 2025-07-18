@@ -17,7 +17,7 @@ from rclpy.qos import QoSProfile
 from sensor_msgs.msg import Image
 from cv_bridge import CvBridge
 
-from ros2_teleoperation.utils.window_style import DarkStyle
+from astroviz.utils.window_style import DarkStyle
 
 
 class CameraViewer(QMainWindow):

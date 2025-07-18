@@ -1,1 +1,1 @@
-docker build -t ros2_teleoperation -f devel.Dockerfile .
+docker build -t astroviz -f devel.Dockerfile .

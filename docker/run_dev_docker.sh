@@ -1,13 +1,13 @@
 
-isRunning=`docker ps -f name=ros2_teleoperation | grep -c "ros2_teleoperation"`;
+isRunning=`docker ps -f name=astroviz | grep -c "astroviz"`;
 
 if [ $isRunning -eq 0 ]; then
     xhost +local:docker
-    docker rm ros2_teleoperation
+    docker rm astroviz
     docker run  \
         --gpus all \
         --device /dev/dri \
-        --name ros2_teleoperation  \
+        --name astroviz  \
         --env DISPLAY=$DISPLAY \
         --env NVIDIA_DRIVER_CAPABILITIES=all \
         --env QTWEBENGINE_DISABLE_SANDBOX=1 \
@@ -18,14 +18,14 @@ if [ $isRunning -eq 0 ]; then
         --privileged \
         -it \
         -v /dev:/dev \
-        -v `pwd`/../:/ros2_ws/src/ros2_teleoperation \
+        -v `pwd`/../:/ros2_ws/src/astroviz \
         -v `pwd`/../../g1_description:/ros2_ws/src/g1_description \
         -v /tmp/.X11-unix:/tmp/.X11-unix \
         -v /run/dbus:/run/dbus \
         -w /ros2_ws \
-        ros2_teleoperation:latest
+        astroviz:latest
 
 else
     echo "Docker already running."
-    docker exec -it ros2_teleoperation /bin/bash
+    docker exec -it astroviz /bin/bash
 fi

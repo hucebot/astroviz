@@ -3,7 +3,7 @@ import os
 def _find_src_config():
     cwd = os.getcwd()
     while True:
-        candidate = os.path.join(cwd, 'src', 'ros2_teleoperation', 'config')
+        candidate = os.path.join(cwd, 'src', 'astroviz', 'config')
         if os.path.isdir(candidate):
             return candidate
         parent = os.path.dirname(cwd)
@@ -15,7 +15,7 @@ def _find_src_config():
 def _find_pkg():
     cwd = os.getcwd()
     while True:
-        candidate = os.path.join(cwd, 'src', 'ros2_teleoperation')
+        candidate = os.path.join(cwd, 'src', 'astroviz')
         if os.path.isdir(candidate):
             return candidate
         parent = os.path.dirname(cwd)

@@ -5,7 +5,8 @@ import threading
 import math
 import fractions
 import tempfile
-# Monkey-patch deprecated imports for urdfpy/networkx compatibility
+import re
+
 import collections
 import collections.abc
 collections.Mapping = collections.abc.Mapping
@@ -14,7 +15,7 @@ collections.Iterable = collections.abc.Iterable
 fractions.gcd = math.gcd
 
 import numpy as np
-# restore deprecated numpy aliases
+
 setattr(np, 'int', int)
 setattr(np, 'float', float)
 
@@ -22,23 +23,23 @@ import rclpy
 from rclpy.node import Node
 from rclpy.qos import QoSProfile, DurabilityPolicy
 from tf2_msgs.msg import TFMessage
+from std_msgs.msg import String
 import tf2_ros
+from ament_index_python.packages import get_package_share_directory
+
 
 from urdfpy import URDF
 import trimesh
 
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget,
-    QVBoxLayout, QPushButton
+    QVBoxLayout, QPushButton, QLabel
 )
 from PyQt6.QtCore    import pyqtSignal, Qt
-from PyQt6.QtGui     import QMatrix4x4, QVector4D
+from PyQt6.QtGui     import QMatrix4x4, QVector4D, QPalette, QColor, QFont
 import pyqtgraph.opengl as gl
 
-from ros2_teleoperation.utils.window_style import DarkStyle, LightStyle
-
-ORIGINAL_URDF_PATH = '/ros2_ws/src/g1_description/description_files/urdf/g1_29dof.urdf'
-MESH_DIR          = '/ros2_ws/src/g1_description/description_files/meshes/'
+from astroviz.utils.window_style import DarkStyle, LightStyle
 
 def quaternion_to_matrix(q):
     w, x, y, z = q.w, q.x, q.y, q.z
@@ -48,7 +49,7 @@ def quaternion_to_matrix(q):
         [2*(x*z - y*w),   2*(y*z + x*w),   1-2*(x*x+y*y)]
     ], dtype=np.float32)
 
-class OrthogonalViewer(QMainWindow):
+class RobotStateViewer(QMainWindow):
     update_signal = pyqtSignal()
 
     def __init__(self, node: Node, root_frame: str = 'pelvis'):
@@ -60,23 +61,27 @@ class OrthogonalViewer(QMainWindow):
         self.setWindowTitle('Robot State Viewer')
         self.resize(800, 600)
 
-        # Transform listener
+        self.node.create_subscription(
+            String, 
+            '/robot_description', 
+            self.robot_description_callback, 
+            QoSProfile(depth=1, durability=DurabilityPolicy.TRANSIENT_LOCAL)
+        )
+
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer, node)
 
-        # Central widget and layout
         w = QWidget()
         self.setCentralWidget(w)
         layout = QVBoxLayout(w)
         layout.setContentsMargins(0, 0, 0, 0)
 
-        # 3D view
         self.gl_view = gl.GLViewWidget()
         self.gl_view.opts['distance'] = 1.0
         self.gl_view.setBackgroundColor((0.2, 0.2, 0.2, 1))
         layout.addWidget(self.gl_view)
 
-        # Toggle buttons
+
         self.btn_tf = QPushButton('TF', self.gl_view)
         self.btn_tf.setCheckable(True)
         self.btn_tf.setChecked(True)
@@ -87,10 +92,20 @@ class OrthogonalViewer(QMainWindow):
         self.btn_urdf.setChecked(True)
         self.btn_urdf.setFixedWidth(80)
         self.btn_urdf.clicked.connect(self.toggle_urdf)
-        # Position overlays
+
+        self.loading_label = QLabel("Loading model...", self.gl_view)
+        self.loading_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.loading_label.setFont(QFont('Arial', 18, QFont.Weight.Bold))
+
+        palette = self.loading_label.palette()
+        palette.setColor(QPalette.ColorRole.WindowText, QColor(255, 255, 255))
+        self.loading_label.setPalette(palette)
+        self.loading_label.setStyleSheet("background-color: rgba(0, 0, 0, 120);")
+        self.loading_label.setGeometry(self.gl_view.rect())
+        self.loading_label.show()
+
         self._position_overlays()
 
-        # Grid and axes
         grid = gl.GLGridItem()
         grid.scale(0.1, 0.1, 0.1)
         self.gl_view.addItem(grid)
@@ -101,25 +116,103 @@ class OrthogonalViewer(QMainWindow):
         for item in (self.scatter, self.x_axes, self.y_axes, self.z_axes):
             self.gl_view.addItem(item)
 
-        # Thread-safe update signal
         self.update_signal.connect(self._update_view, Qt.ConnectionType.QueuedConnection)
 
-        # ROS subscriptions for TF
         self.node.create_subscription(TFMessage, '/tf', self._tf_callback, qos_profile=10)
         static_qos = QoSProfile(depth=10)
         static_qos.durability = DurabilityPolicy.TRANSIENT_LOCAL
         self.node.create_subscription(TFMessage, '/tf_static', self._tf_callback, qos_profile=static_qos)
 
-        # Load URDF meshes
         self.mesh_items = []
-        self._load_urdf()
+        self.gl_view.installEventFilter(self)
+
+    def eventFilter(self, source, event):
+        if source is self.gl_view and event.type() == event.Type.Resize:
+            self.loading_label.setGeometry(self.gl_view.rect())
+        return super().eventFilter(source, event)
+
+
+    def fix_urdf_path(self, urdf_string):
+            def replace_package(match):
+                package_path = get_package_share_directory(match.group(1))
+                return package_path + '/' + match.group(2)
+            pattern = r'package://([^/]+)/(.+?)(?=["\'])'
+            return re.sub(pattern, replace_package, urdf_string)
+    
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self._position_overlays()
+        self.loading_label.setGeometry(self.gl_view.rect())
+
+
+    def robot_description_callback(self, msg: String):
+        xml  = msg.data
+        if not xml:
+            return
+        xml_fixed = self.fix_urdf_path(xml)
+
+        self.loading_label.show()
+        threading.Thread(target=self.load_urdf, args=(xml_fixed,), daemon=True).start()
+
+    def load_urdf(self, urdf_string):
+        tmp = tempfile.NamedTemporaryFile(delete=False, suffix='.urdf')
+        tmp.write(urdf_string.encode()); tmp.flush(); tmp.close()
+
+        urdf = URDF.load(tmp.name)
+        mesh_items_temp = []
+        for link in urdf.links:
+            for visual in link.visuals:
+                fn = visual.geometry.mesh.filename
+                mesh_path = fn
+                scene_or_mesh = trimesh.load_mesh(mesh_path, process=False)
+                tm = scene_or_mesh.dump() if hasattr(scene_or_mesh, 'dump') else scene_or_mesh
+                verts = tm.vertices.view(np.ndarray)
+                faces = tm.faces.view(np.ndarray)
+                normals = tm.vertex_normals.view(np.ndarray) if tm.vertex_normals is not None else None
+                if visual.material and visual.material.color is not None:
+                    rgba = visual.material.color
+                    face_color = (rgba[0], rgba[1], rgba[2], rgba[3])
+                else:
+                    face_color = (0.7, 0.7, 0.7, 1.0)
+
+                item = gl.GLMeshItem(
+                    vertexes=verts,
+                    faces=faces,
+                    normals=normals,
+                    smooth=True,
+                    shader='shaded',
+                    drawFaces=True,
+                    drawEdges=False,
+                    faceColor=face_color
+                )
+                item.setGLOptions('opaque')
+
+                if isinstance(visual.origin, np.ndarray) and visual.origin.shape == (4, 4):
+                    T_lv = visual.origin.astype(np.float32)
+                else:
+                    T = np.eye(4, dtype=np.float32)
+                    if hasattr(visual.origin, 'position') and hasattr(visual.origin, 'rotation'):
+                        pos = visual.origin.position
+                        rot = quaternion_to_matrix(visual.origin.rotation)
+                        T[:3, :3] = rot
+                        T[:3, 3] = [pos.x, pos.y, pos.z]
+                    T_lv = T
+
+                mesh_items_temp.append((item, link.name, T_lv))
+
+        self.mesh_items = mesh_items_temp
+
+        self.update_signal.connect(self.finish_loading, Qt.ConnectionType.QueuedConnection)
+        self.update_signal.emit()
+
+    def finish_loading(self):
+        for item, _, _ in self.mesh_items:
+            self.gl_view.addItem(item)
+        self.loading_label.hide()
+        self.update_signal.disconnect(self.finish_loading)
 
     def showEvent(self, event):
         super().showEvent(event)
-        self._position_overlays()
-
-    def resizeEvent(self, event):
-        super().resizeEvent(event)
         self._position_overlays()
 
     def _position_overlays(self):
@@ -143,57 +236,6 @@ class OrthogonalViewer(QMainWindow):
         for item, _, _ in self.mesh_items:
             item.setVisible(self.render_urdf)
 
-    def _load_urdf(self):
-        xml = open(ORIGINAL_URDF_PATH, 'r').read()
-        xml_fixed = xml.replace(
-            'package://g1_description/description_files/meshes/',
-            MESH_DIR
-        )
-        tmp = tempfile.NamedTemporaryFile(delete=False, suffix='.urdf')
-        tmp.write(xml_fixed.encode()); tmp.flush(); tmp.close()
-
-        urdf = URDF.load(tmp.name)
-        for link in urdf.links:
-            for visual in link.visuals:
-                fn = visual.geometry.mesh.filename
-                mesh_path = fn if os.path.isabs(fn) else os.path.join(MESH_DIR, fn)
-                scene_or_mesh = trimesh.load_mesh(mesh_path, process=False)
-                tm = scene_or_mesh.dump() if hasattr(scene_or_mesh, 'dump') else scene_or_mesh
-                verts = tm.vertices.view(np.ndarray)
-                faces = tm.faces.view(np.ndarray)
-                normals = tm.vertex_normals.view(np.ndarray) if tm.vertex_normals is not None else None
-                if visual.material and visual.material.color is not None:
-                    rgba = visual.material.color
-                    face_color = (rgba[0], rgba[1], rgba[2], rgba[3])
-                else:
-                    face_color = (0.7, 0.7, 0.7, 1.0)
-
-                item = gl.GLMeshItem(
-                    vertexes=verts,
-                    faces=faces,
-                    normals=normals,
-                    smooth=True,
-                    shader='shaded',
-                    drawFaces=True,
-                    drawEdges=False,
-                    faceColor=face_color
-                )
-                item.setGLOptions('opaque')
-                self.gl_view.addItem(item)
-
-                if isinstance(visual.origin, np.ndarray) and visual.origin.shape == (4, 4):
-                    T_lv = visual.origin.astype(np.float32)
-                else:
-                    T = np.eye(4, dtype=np.float32)
-                    if hasattr(visual.origin, 'position') and hasattr(visual.origin, 'rotation'):
-                        pos = visual.origin.position
-                        rot = quaternion_to_matrix(visual.origin.rotation)
-                        T[:3, :3] = rot
-                        T[:3, 3] = [pos.x, pos.y, pos.z]
-                    T_lv = T
-
-                self.mesh_items.append((item, link.name, T_lv))
-
     def _tf_callback(self, msg: TFMessage):
         if msg.transforms:
             self.update_signal.emit()
@@ -203,7 +245,6 @@ class OrthogonalViewer(QMainWindow):
         lines = self.tf_buffer.all_frames_as_string().splitlines()
         frames = [L.split()[1] for L in lines if L.startswith('Frame ')]
 
-        # Update URDF meshes
         for item, link_name, T_lv in self.mesh_items:
             if not self.render_urdf:
                 break
@@ -221,7 +262,6 @@ class OrthogonalViewer(QMainWindow):
                 mat.setRow(i, QVector4D(*T[i, :]))
             item.setTransform(mat)
 
-        # Update TF points and axes
         if not self.render_tf:
             return
 
@@ -265,7 +305,7 @@ def main():
 
     app = QApplication(sys.argv)
     DarkStyle(app)
-    viewer = OrthogonalViewer(node)
+    viewer = RobotStateViewer(node)
     viewer.show()
     app.exec()
 

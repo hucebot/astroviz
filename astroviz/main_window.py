@@ -15,15 +15,15 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtGui import QIcon, QPixmap
 
-from ros2_teleoperation.gps_map_window import GPSMapWindow
-from ros2_teleoperation.camera_window import CameraViewer
-from ros2_teleoperation.imu_window import MainWindow as IMUWindow
-from ros2_teleoperation.lidar_window import LiDARViewer
-from ros2_teleoperation.teleoperation_window import TeleoperationViewer
+from astroviz.gps_map_window import GPSMapWindow
+from astroviz.camera_window import CameraViewer
+from astroviz.imu_window import MainWindow as IMUWindow
+from astroviz.lidar_window import LiDARViewer
+from astroviz.teleoperation_window import TeleoperationViewer
 
-from ros2_teleoperation.utils.window_style import DarkStyle, LightStyle
-from ros2_teleoperation.utils.windows_implemented import VIEW_TYPES
-from ros2_teleoperation.utils._find import _find_pkg, _find_src_config
+from astroviz.utils.window_style import DarkStyle, LightStyle
+from astroviz.utils.windows_implemented import VIEW_TYPES
+from astroviz.utils._find import _find_pkg, _find_src_config
 from termcolor import colored
 
 
@@ -32,14 +32,14 @@ if _src_config:
     _CONFIG_DIR = _src_config
 else:
     _CONFIG_DIR = os.path.join(
-        get_package_share_directory('ros2_teleoperation'), 'config'
+        get_package_share_directory('astroviz'), 'config'
     )
 
 _pkg = _find_pkg()
 if _pkg:
     _PKG_DIR = _pkg
 else:
-    _PKG_DIR = get_package_share_directory('ros2_teleoperation')
+    _PKG_DIR = get_package_share_directory('astroviz')
 
 os.makedirs(_CONFIG_DIR, exist_ok=True)
 
