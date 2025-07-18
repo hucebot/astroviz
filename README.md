@@ -1,5 +1,8 @@
 # AstroViz
 
+<img src="https://github.com/CDonosoK/astroviz/blob/main/images/astroviz.png" alt="astroviz" width="800" height="400" center>
+
+[![GitHub Stars](https://img.shields.io/github/stars/CDonosoK/astroviz?style=social)](https://github.com/CDonosoK/astroviz/stargazers)
 [![License](https://img.shields.io/badge/License-MIT--Clause-blue.svg)](https://opensource.org/licenses/MIT)
 [![ROS2 Version](https://img.shields.io/badge/ROS-Humble-green)](https://docs.ros.org/en/humble/index.html)
 
