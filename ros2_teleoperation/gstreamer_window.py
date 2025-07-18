@@ -57,7 +57,7 @@ class WebcamDisplay(QObject):
     def _update(self, img):
         self.label.setPixmap(QPixmap.fromImage(img))
 
-class MainWindow(QWidget):
+class GstreamerWindow(QWidget):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Main Camera with QtCharts")
@@ -117,7 +117,7 @@ def main(args=None):
     app.setStyle('Fusion')
 
     node = rclpy.create_node('gstreamer_viewer_qtcharts')
-    window = MainWindow()
+    window = GstreamerWindow()
     window.show()
     app.exec()
     rclpy.shutdown()

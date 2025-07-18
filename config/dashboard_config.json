@@ -1,6 +1,6 @@
 {
   "views": [
-    "Camera",
+    "RobotState",
     "LiDAR",
     "System Health",
     "System Health",
@@ -9,13 +9,13 @@
   "actual_style": "dark",
   "splitter_sizes": {
     "top": [
-      908,
-      1008
+      801,
+      888
     ],
     "bottom": [
-      440,
-      1235,
-      237
+      373,
+      1046,
+      266
     ],
     "main": [
       599,

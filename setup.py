@@ -30,6 +30,7 @@ setup(
             'gridmap_viewer = ros2_teleoperation.gridmap_window:main',
             'orthognal_viewer = ros2_teleoperation.orthogonal_window:main',
             'gstreamer_viewer = ros2_teleoperation.gstreamer_window:main',
+            'robotstate_viewer = ros2_teleoperation.robotstate_window:main',
         ],
     },
 )
