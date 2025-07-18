@@ -12,3 +12,4 @@ This document lists all the GUI windows currently available in the `ros2_teleope
 | GridMap Viewer | ![GridMap Viewer](images/gridmap_viewer.png)                           | Displays a grid map of the environment, useful for navigation and planning. |
 | Ortogonal Viewer | ![Ortogonal Viewer](images/ortogonal_viewer.png)                     | Displays orthogonal views of the robot and the environment for better spatial understanding. |
 | Gstreamer Viewer | ![Gstreamer Viewer](images/gstreamer_viewer.png) *(if exists)* | Displays video streams from the robot's cameras using GStreamer.            |
+| Robot State Viewer   | ![Robot State](images/robotstate_viewer.png)                                 | Displays the robot's state, including joint positions and visual meshes.    |
