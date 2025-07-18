@@ -1,6 +1,6 @@
 {
   "views": [
-    "RobotState",
+    "Orthogonal",
     "LiDAR",
     "Camera",
     "System Health",
