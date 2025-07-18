@@ -1,168 +1,154 @@
 #!/usr/bin/env python3
 import sys
+import threading
+import collections, collections.abc
+import math
+import fractions
+# Monkey‑patch networkx/urdfpy if needed
+collections.Mapping   = collections.abc.Mapping
+collections.Set       = collections.abc.Set
+collections.Iterable  = collections.abc.Iterable
+fractions.gcd         = math.gcd
+
 import numpy as np
+# restore deprecated numpy aliases
+setattr(np, 'int', int)
+setattr(np, 'float', float)
+
 import rclpy
 from rclpy.node import Node
-from std_msgs.msg import String
-from PyQt6.QtWidgets import QApplication, QMainWindow, QWidget, QVBoxLayout
-from PyQt6.QtCore import QTimer
-import pyqtgraph.opengl as gl
-from pyqtgraph.opengl import MeshData
-from urdf_parser_py.urdf import URDF
+from rclpy.qos import QoSProfile, DurabilityPolicy
+from tf2_msgs.msg import TFMessage
+import tf2_ros
 
-class URDFViewer(QMainWindow):
-    def __init__(self, node: Node):
+from PyQt6.QtWidgets import QApplication, QMainWindow, QWidget, QVBoxLayout
+from PyQt6.QtCore    import pyqtSignal, Qt
+import pyqtgraph.opengl as gl
+
+def quaternion_to_matrix(q):
+    w, x, y, z = q.w, q.x, q.y, q.z
+    return np.array([
+        [1-2*(y*y+z*z),   2*(x*y - z*w),   2*(x*z + y*w)],
+        [2*(x*y + z*w),   1-2*(x*x+z*z),   2*(y*z - x*w)],
+        [2*(x*z - y*w),   2*(y*z + x*w),   1-2*(x*x+y*y)]
+    ], dtype=np.float32)
+
+class TFViewer(QMainWindow):
+    update_signal = pyqtSignal()
+
+    def __init__(self, node: Node, root_frame: str = 'pelvis'):
         super().__init__()
-        self.node = node
-        self.setWindowTitle("URDF Viewer")
+        self.node       = node
+        self.root_frame = root_frame
+        self.setWindowTitle("TF Frames Viewer (event‑driven)")
         self.resize(800, 600)
 
-        # Storage for URDF XML and mesh items
-        self.robot_xml = ''
-        self.mesh_items = []
+        self.tf_buffer   = tf2_ros.Buffer()
+        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer, node)
 
-        # Subscribe to /robot_description topic
-        self.sub = self.node.create_subscription(
-            String,
-            'robot_description',
-            self.urdf_callback,
-            10
+        self.latest_transforms = {}
+
+        w = QWidget()
+        self.setCentralWidget(w)
+        layout = QVBoxLayout(w)
+        layout.setContentsMargins(0, 0, 0, 0)
+
+        self.gl_view = gl.GLViewWidget()
+        self.gl_view.opts['distance'] = 1.0
+        layout.addWidget(self.gl_view)
+
+        grid = gl.GLGridItem()
+        grid.scale(0.1, 0.1, 0.1)
+        self.gl_view.addItem(grid)
+
+        self.scatter = gl.GLScatterPlotItem()
+        self.gl_view.addItem(self.scatter)
+
+        self.x_axes = gl.GLLinePlotItem(color=(1,0,0,1), width=2, mode='lines')
+        self.y_axes = gl.GLLinePlotItem(color=(0,1,0,1), width=2, mode='lines')
+        self.z_axes = gl.GLLinePlotItem(color=(0,0,1,1), width=2, mode='lines')
+        self.gl_view.addItem(self.x_axes)
+        self.gl_view.addItem(self.y_axes)
+        self.gl_view.addItem(self.z_axes)
+
+        self.update_signal.connect(self._update_view, Qt.ConnectionType.QueuedConnection)
+
+        self.node.create_subscription(
+            TFMessage, '/tf', self._tf_callback, qos_profile=10
+        )
+        static_qos = QoSProfile(depth=10)
+        static_qos.durability = DurabilityPolicy.TRANSIENT_LOCAL
+        self.node.create_subscription(
+            TFMessage, '/tf_static', self._tf_callback, qos_profile=static_qos
         )
 
-        # Set up the OpenGL view
-        widget = QWidget()
-        self.setCentralWidget(widget)
-        layout = QVBoxLayout(widget)
-        layout.setContentsMargins(0,0,0,0)
+    def _tf_callback(self, msg: TFMessage):
+        if msg.transforms:
+            self.update_signal.emit()
 
-        self.gl_widget = gl.GLViewWidget()
-        self.gl_widget.opts['distance'] = 2.0
-        layout.addWidget(self.gl_widget)
+    def _update_view(self):
+        all_lines = self.tf_buffer.all_frames_as_string().splitlines()
+        frame_ids = [L.split()[1] for L in all_lines if L.startswith('Frame ')]
 
-        # Add a grid for reference
-        self.grid = gl.GLGridItem()
-        self.grid.scale(0.1, 0.1, 0.1)
-        self.gl_widget.addItem(self.grid)
-
-        # Spin ROS periodically
-        self.ros_timer = QTimer(self)
-        self.ros_timer.timeout.connect(lambda: rclpy.spin_once(node, timeout_sec=0))
-        self.ros_timer.start(10)
-
-    def urdf_callback(self, msg: String):
-        print("Received robot_description message")
-        xml = msg.data
-        if xml and xml != self.robot_xml:
-            self.robot_xml = xml
-            self.node.get_logger().info("Received robot_description, rebuilding model...")
-            self._rebuild_model()
-
-    def _rebuild_model(self):
-        # Clear previous mesh items
-        for item in self.mesh_items:
+        mats = []
+        for child in frame_ids:
+            if child == self.root_frame:
+                continue
             try:
-                self.gl_widget.removeItem(item)
-            except Exception:
-                pass
-        self.mesh_items.clear()
+                tf = self.tf_buffer.lookup_transform(
+                    self.root_frame, child, rclpy.time.Time()
+                )
+            except (tf2_ros.LookupException,
+                    tf2_ros.ConnectivityException,
+                    tf2_ros.ExtrapolationException):
+                continue
 
-        # Parse URDF
-        try:
-            robot = URDF.from_xml_string(self.robot_xml)
-            self.node.get_logger().info(f"Loaded URDF for robot: {robot.name}")
-        except Exception as e:
-            self.node.get_logger().error(f"URDF parse error: {e}")
+            t = tf.transform.translation
+            q = tf.transform.rotation
+            rot3 = quaternion_to_matrix(q)
+            M = np.eye(4, dtype=np.float32)
+            M[:3, :3] = rot3
+            M[:3,  3] = [t.x, t.y, t.z]
+            mats.append(M)
+
+        if not mats:
             return
 
-        # Build visuals
-        for link in robot.links:
-            visual = link.visual
-            if not visual or not visual.geometry:
-                continue
-            meshdata = self._create_mesh(visual.geometry)
-            if meshdata is None:
-                continue
-            mesh_item = gl.GLMeshItem(meshdata=meshdata, smooth=True, drawEdges=False)
-            mesh_item.setGLOptions('opaque')
-            # Apply origin
-            origin = visual.origin
-            if origin:
-                xyz = origin.xyz or [0,0,0]
-                rpy = origin.rpy or [0,0,0]
-                mesh_item.translate(*xyz)
-                mesh_item.rotate(np.degrees(rpy[0]), 1, 0, 0)
-                mesh_item.rotate(np.degrees(rpy[1]), 0, 1, 0)
-                mesh_item.rotate(np.degrees(rpy[2]), 0, 0, 1)
-            self.gl_widget.addItem(mesh_item)
-            self.mesh_items.append(mesh_item)
+        pts = np.vstack([M[:3,3] for M in mats])
+        self.scatter.setData(pos=pts, size=5, color=(1,1,0,0.8))
 
-    def _create_mesh(self, geom):
-        if geom.box:
-            size = geom.box.size
-            return self._create_box_mesh(size)
-        if geom.cylinder:
-            return self._create_cylinder_mesh(geom.cylinder.radius, geom.cylinder.length)
-        if geom.sphere:
-            return self._create_sphere_mesh(geom.sphere.radius)
-        self.node.get_logger().warn("Unsupported geometry type in URDF visual")
-        return None
+        N = len(mats)
+        axis_len = 0.1
+        x_lines = np.zeros((2*N,3), dtype=np.float32)
+        y_lines = np.zeros((2*N,3), dtype=np.float32)
+        z_lines = np.zeros((2*N,3), dtype=np.float32)
 
-    def _create_box_mesh(self, size):
-        sx, sy, sz = size
-        verts = np.array([
-            [-sx/2,-sy/2,-sz/2],[sx/2,-sy/2,-sz/2],[sx/2,sy/2,-sz/2],[-sx/2,sy/2,-sz/2],
-            [-sx/2,-sy/2,sz/2],[sx/2,-sy/2,sz/2],[sx/2,sy/2,sz/2],[-sx/2,sy/2,sz/2]
-        ], dtype=np.float32)
-        faces = np.array([
-            [0,1,2],[0,2,3],[4,5,6],[4,6,7],
-            [0,1,5],[0,5,4],[1,2,6],[1,6,5],[2,3,7],[2,7,6],[3,0,4],[3,4,7]
-        ], dtype=np.uint32)
-        return MeshData(vertexes=verts, faces=faces)
+        for i, M in enumerate(mats):
+            origin = M[:3,3]
+            R      = M[:3,:3]
+            x_end = origin + R @ np.array([axis_len,0,0], dtype=np.float32)
+            y_end = origin + R @ np.array([0,axis_len,0], dtype=np.float32)
+            z_end = origin + R @ np.array([0,0,axis_len], dtype=np.float32)
+            x_lines[2*i]   = origin; x_lines[2*i+1]   = x_end
+            y_lines[2*i]   = origin; y_lines[2*i+1]   = y_end
+            z_lines[2*i]   = origin; z_lines[2*i+1]   = z_end
 
-    def _create_cylinder_mesh(self, radius, length, slices=32):
-        verts = []
-        faces = []
-        for i in range(slices):
-            theta = 2*np.pi*i/slices
-            x,y = radius*np.cos(theta), radius*np.sin(theta)
-            verts.append([x,y,-length/2]); verts.append([x,y,length/2])
-        for i in range(slices):
-            i0=2*i; i1=2*((i+1)%slices)
-            faces.append([i0,i1,i0+1]); faces.append([i1,i1+1,i0+1])
-        return MeshData(vertexes=np.array(verts,dtype=np.float32), faces=np.array(faces,dtype=np.uint32))
+        self.x_axes.setData(pos=x_lines)
+        self.y_axes.setData(pos=y_lines)
+        self.z_axes.setData(pos=z_lines)
 
-    def _create_sphere_mesh(self, radius, slices=16, stacks=16):
-        verts=[]; faces=[]
-        for i in range(stacks+1):
-            phi=np.pi*i/stacks
-            for j in range(slices):
-                theta=2*np.pi*j/slices
-                verts.append([
-                    radius*np.sin(phi)*np.cos(theta),
-                    radius*np.sin(phi)*np.sin(theta),
-                    radius*np.cos(phi)
-                ])
-        for i in range(stacks):
-            for j in range(slices):
-                p0=i*slices+j; p1=p0+slices
-                p2=p1+1 if j+1<slices else p1-(slices-1)
-                p3=p0+1 if j+1<slices else p0-(slices-1)
-                faces.append([p0,p1,p2]); faces.append([p0,p2,p3])
-        return MeshData(vertexes=np.array(verts,dtype=np.float32), faces=np.array(faces,dtype=np.uint32))
+def main():
+    rclpy.init()
+    node = rclpy.create_node('tf_viewer')
 
-    def closeEvent(self, event):
-        if self.sub:
-            self.node.destroy_subscription(self.sub)
-        return super().closeEvent(event)
+    spin_thread = threading.Thread(target=rclpy.spin, args=(node,), daemon=True)
+    spin_thread.start()
 
-
-def main(args=None):
-    rclpy.init(args=args)
-    node = rclpy.create_node('urdf_viewer')
     app = QApplication(sys.argv)
-    viewer = URDFViewer(node)
+    viewer = TFViewer(node, root_frame='pelvis')
     viewer.show()
     app.exec()
+
     node.destroy_node()
     rclpy.shutdown()
 
