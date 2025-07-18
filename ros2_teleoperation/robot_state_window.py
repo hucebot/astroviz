@@ -5,6 +5,7 @@ import threading
 import math
 import fractions
 import tempfile
+import re
 # Monkey-patch deprecated imports for urdfpy/networkx compatibility
 import collections
 import collections.abc
@@ -22,7 +23,10 @@ import rclpy
 from rclpy.node import Node
 from rclpy.qos import QoSProfile, DurabilityPolicy
 from tf2_msgs.msg import TFMessage
+from std_msgs.msg import String
 import tf2_ros
+from ament_index_python.packages import get_package_share_directory
+
 
 from urdfpy import URDF
 import trimesh
@@ -36,9 +40,6 @@ from PyQt6.QtGui     import QMatrix4x4, QVector4D
 import pyqtgraph.opengl as gl
 
 from ros2_teleoperation.utils.window_style import DarkStyle, LightStyle
-
-ORIGINAL_URDF_PATH = '/ros2_ws/src/g1_description/description_files/urdf/g1_29dof.urdf'
-MESH_DIR          = '/ros2_ws/src/g1_description/description_files/meshes/'
 
 def quaternion_to_matrix(q):
     w, x, y, z = q.w, q.x, q.y, q.z
@@ -59,6 +60,13 @@ class RobotStateViewer(QMainWindow):
         self.render_urdf = True
         self.setWindowTitle('Robot State Viewer')
         self.resize(800, 600)
+
+        self.node.create_subscription(
+            String, 
+            '/robot_description', 
+            self.robot_description_callback, 
+            QoSProfile(depth=1, durability=DurabilityPolicy.TRANSIENT_LOCAL)
+        )
 
         # Transform listener
         self.tf_buffer = tf2_ros.Buffer()
@@ -112,43 +120,20 @@ class RobotStateViewer(QMainWindow):
 
         # Load URDF meshes
         self.mesh_items = []
-        self._load_urdf()
+        #self._load_urdf()
 
-    def showEvent(self, event):
-        super().showEvent(event)
-        self._position_overlays()
+    def fix_urdf_path(self, urdf_string):
+            def replace_package(match):
+                package_path = get_package_share_directory(match.group(1))
+                return package_path + '/' + match.group(2)
+            pattern = r'package://([^/]+)/(.+?)(?=["\'])'
+            return re.sub(pattern, replace_package, urdf_string)
 
-    def resizeEvent(self, event):
-        super().resizeEvent(event)
-        self._position_overlays()
-
-    def _position_overlays(self):
-        margin = 5
-        x = margin
-        y = margin
-        self.btn_tf.move(x, y)
-        x += self.btn_tf.width() + margin
-        self.btn_urdf.move(x, y)
-
-    def toggle_tf(self):
-        self.render_tf = self.btn_tf.isChecked()
-        visible = self.render_tf
-        self.scatter.setVisible(visible)
-        self.x_axes.setVisible(visible)
-        self.y_axes.setVisible(visible)
-        self.z_axes.setVisible(visible)
-
-    def toggle_urdf(self):
-        self.render_urdf = self.btn_urdf.isChecked()
-        for item, _, _ in self.mesh_items:
-            item.setVisible(self.render_urdf)
-
-    def _load_urdf(self):
-        xml = open(ORIGINAL_URDF_PATH, 'r').read()
-        xml_fixed = xml.replace(
-            'package://g1_description/description_files/meshes/',
-            MESH_DIR
-        )
+    def robot_description_callback(self, msg: String):
+        xml  = msg.data
+        if not xml:
+            return
+        xml_fixed = self.fix_urdf_path(xml)
         tmp = tempfile.NamedTemporaryFile(delete=False, suffix='.urdf')
         tmp.write(xml_fixed.encode()); tmp.flush(); tmp.close()
 
@@ -156,7 +141,7 @@ class RobotStateViewer(QMainWindow):
         for link in urdf.links:
             for visual in link.visuals:
                 fn = visual.geometry.mesh.filename
-                mesh_path = fn if os.path.isabs(fn) else os.path.join(MESH_DIR, fn)
+                mesh_path = fn 
                 scene_or_mesh = trimesh.load_mesh(mesh_path, process=False)
                 tm = scene_or_mesh.dump() if hasattr(scene_or_mesh, 'dump') else scene_or_mesh
                 verts = tm.vertices.view(np.ndarray)
@@ -193,6 +178,35 @@ class RobotStateViewer(QMainWindow):
                     T_lv = T
 
                 self.mesh_items.append((item, link.name, T_lv))
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        self._position_overlays()
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self._position_overlays()
+
+    def _position_overlays(self):
+        margin = 5
+        x = margin
+        y = margin
+        self.btn_tf.move(x, y)
+        x += self.btn_tf.width() + margin
+        self.btn_urdf.move(x, y)
+
+    def toggle_tf(self):
+        self.render_tf = self.btn_tf.isChecked()
+        visible = self.render_tf
+        self.scatter.setVisible(visible)
+        self.x_axes.setVisible(visible)
+        self.y_axes.setVisible(visible)
+        self.z_axes.setVisible(visible)
+
+    def toggle_urdf(self):
+        self.render_urdf = self.btn_urdf.isChecked()
+        for item, _, _ in self.mesh_items:
+            item.setVisible(self.render_urdf)
 
     def _tf_callback(self, msg: TFMessage):
         if msg.transforms:
