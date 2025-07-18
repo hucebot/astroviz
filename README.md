@@ -1,10 +1,9 @@
 # AstroViz
 
-<img src="https://github.com/CDonosoK/astroviz/blob/main/images/astroviz.png" alt="astroviz" width="800" height="400" center>
-
-[![GitHub Stars](https://img.shields.io/github/stars/CDonosoK/astroviz?style=social)](https://github.com/CDonosoK/astroviz/stargazers)
 [![License](https://img.shields.io/badge/License-MIT--Clause-blue.svg)](https://opensource.org/licenses/MIT)
 [![ROS2 Version](https://img.shields.io/badge/ROS-Humble-green)](https://docs.ros.org/en/humble/index.html)
+[![GitHub Stars](https://img.shields.io/github/stars/CDonosoK/astroviz?style=social)](https://github.com/CDonosoK/astroviz/stargazers)
+
 
 This is a ROS2 package designed for teleoperation, featuring a GPS map viewer and waypoint management. It allows users to visualize GPS data and manage waypoints for autonomous navigation. Aditionally, provides a camera viewer and a GUI to visualize the robot's state.
 
