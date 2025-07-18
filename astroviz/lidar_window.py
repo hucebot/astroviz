@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-import sys
+import sys, os
 import threading
 
 import rclpy
@@ -7,6 +7,7 @@ from rclpy.node import Node
 from rclpy.qos import QoSProfile, ReliabilityPolicy
 from sensor_msgs.msg import PointCloud2
 import sensor_msgs_py.point_cloud2 as pc2
+from ament_index_python.packages import get_package_share_directory
 
 import numpy as np
 from PyQt6.QtWidgets import (
@@ -14,10 +15,33 @@ from PyQt6.QtWidgets import (
     QVBoxLayout, QComboBox, QPushButton
 )
 from PyQt6.QtCore import QTimer
+from PyQt6.QtGui import QIcon
 import pyqtgraph.opengl as gl
 import pyqtgraph as pg
 
 from astroviz.utils.window_style import DarkStyle, LightStyle
+
+from astroviz.utils._find import _find_pkg, _find_src_config
+
+_src_config = _find_src_config()
+if _src_config:
+    _CONFIG_DIR = _src_config
+else:
+    _CONFIG_DIR = os.path.join(
+        get_package_share_directory('astroviz'), 'config'
+    )
+
+
+_pkg = _find_pkg()
+if _pkg:
+    _PKG_DIR = _pkg
+else:
+    _PKG_DIR = get_package_share_directory('astroviz')
+
+os.makedirs(_CONFIG_DIR, exist_ok=True)
+
+CONFIG_PATH = os.path.join(_CONFIG_DIR, 'dashboard_config.json')
+ICONS_DIR  = os.path.join(_PKG_DIR, 'icons')
 
 class LiDARViewer(QMainWindow):
     def showEvent(self, event):
@@ -30,6 +54,7 @@ class LiDARViewer(QMainWindow):
         super().__init__()
         self.node = node
         self.setWindowTitle("LiDAR Viewer")
+        self.setWindowIcon(QIcon(os.path.join(ICONS_DIR, 'astroviz_icon.png')))
         self.resize(800, 600)
 
         qos = QoSProfile(depth=1, reliability=ReliabilityPolicy.BEST_EFFORT)

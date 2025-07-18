@@ -1,18 +1,43 @@
 #!/usr/bin/env python3
 
 import sys
+import os
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout
 )
 from PyQt6.QtCore import Qt, QTimer, QPointF, QSize
-from PyQt6.QtGui import QPainter, QPen, QColor, QMouseEvent
+from PyQt6.QtGui import QPainter, QPen, QColor, QMouseEvent, QIcon
 
 import rclpy
 from rclpy.node import Node
 from sensor_msgs.msg import Joy
+from ament_index_python.packages import get_package_share_directory
 
 from astroviz.camera_window import CameraViewer
+
 from astroviz.utils.window_style import DarkStyle
+from astroviz.utils._find import _find_pkg, _find_src_config
+
+_src_config = _find_src_config()
+if _src_config:
+    _CONFIG_DIR = _src_config
+else:
+    _CONFIG_DIR = os.path.join(
+        get_package_share_directory('astroviz'), 'config'
+    )
+
+
+_pkg = _find_pkg()
+if _pkg:
+    _PKG_DIR = _pkg
+else:
+    _PKG_DIR = get_package_share_directory('astroviz')
+
+os.makedirs(_CONFIG_DIR, exist_ok=True)
+
+CONFIG_PATH = os.path.join(_CONFIG_DIR, 'dashboard_config.json')
+ICONS_DIR  = os.path.join(_PKG_DIR, 'icons')
+
 
 
 class JoystickWidget(QWidget):
@@ -87,6 +112,7 @@ class TeleoperationViewer(QMainWindow):
         super().__init__()
         self.node = node
         self.setWindowTitle("Teleoperation Viewer")
+        self.setWindowIcon(QIcon(os.path.join(ICONS_DIR, 'astroviz_icon.png')))
         self.setGeometry(100, 100, 900, 720)
 
         cam_viewer = CameraViewer(node)

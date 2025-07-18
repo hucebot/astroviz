@@ -3,6 +3,7 @@ import sys
 import time
 import socket
 import rclpy
+import os
 from rclpy.node import Node
 from sensor_msgs.msg import BatteryState
 from PyQt6.QtWidgets import (
@@ -10,20 +11,44 @@ from PyQt6.QtWidgets import (
     QPushButton, QApplication, QComboBox
 )
 from PyQt6.QtCore import QTimer
-from PyQt6.QtGui import QFont, QPalette, QColor
+from PyQt6.QtGui import QFont, QPalette, QColor, QIcon
 import pyqtgraph as pg
+
+from ament_index_python.packages import get_package_share_directory
 
 from ping3 import ping
 from ping3.errors import PingError
 from collections import deque
 
 from astroviz.utils.window_style import DarkStyle
+from astroviz.utils._find import _find_pkg, _find_src_config
+
+_src_config = _find_src_config()
+if _src_config:
+    _CONFIG_DIR = _src_config
+else:
+    _CONFIG_DIR = os.path.join(
+        get_package_share_directory('astroviz'), 'config'
+    )
+
+
+_pkg = _find_pkg()
+if _pkg:
+    _PKG_DIR = _pkg
+else:
+    _PKG_DIR = get_package_share_directory('astroviz')
+
+os.makedirs(_CONFIG_DIR, exist_ok=True)
+
+CONFIG_PATH = os.path.join(_CONFIG_DIR, 'dashboard_config.json')
+ICONS_DIR  = os.path.join(_PKG_DIR, 'icons')
 
 class GraphViewer(QWidget):
     def __init__(self, node: Node, parent=None):
         super().__init__(parent)
         self.node = node
         self.setWindowTitle('System Health')
+        self.setWindowIcon(QIcon(os.path.join(ICONS_DIR, 'astroviz_icon.png')))
         self.max_points = 100
 
         self.data = {

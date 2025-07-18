@@ -102,6 +102,8 @@ class TeleoperationDashboard(QMainWindow):
         self.node = node
         self.actual_style = 'dark'
         self.setWindowTitle("Teleoperation Dashboard")
+        self.setWindowIcon(QIcon(os.path.join(ICONS_DIR, 'astroviz_icon.png')))
+
 
         screen = QApplication.primaryScreen()
         if screen:

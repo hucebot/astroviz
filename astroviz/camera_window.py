@@ -3,21 +3,45 @@
 import sys
 import cv2
 import numpy as np
+import os
 
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QLabel, QComboBox,
     QHBoxLayout, QPushButton
 )
 from PyQt6.QtCore import Qt, QTimer
-from PyQt6.QtGui import QPixmap, QImage
+from PyQt6.QtGui import QPixmap, QImage, QIcon
 
 import rclpy
 from rclpy.node import Node
 from rclpy.qos import QoSProfile
 from sensor_msgs.msg import Image
 from cv_bridge import CvBridge
+from ament_index_python.packages import get_package_share_directory
+
 
 from astroviz.utils.window_style import DarkStyle
+from astroviz.utils._find import _find_pkg, _find_src_config
+
+_src_config = _find_src_config()
+if _src_config:
+    _CONFIG_DIR = _src_config
+else:
+    _CONFIG_DIR = os.path.join(
+        get_package_share_directory('astroviz'), 'config'
+    )
+
+
+_pkg = _find_pkg()
+if _pkg:
+    _PKG_DIR = _pkg
+else:
+    _PKG_DIR = get_package_share_directory('astroviz')
+
+os.makedirs(_CONFIG_DIR, exist_ok=True)
+
+CONFIG_PATH = os.path.join(_CONFIG_DIR, 'dashboard_config.json')
+ICONS_DIR  = os.path.join(_PKG_DIR, 'icons')
 
 
 class CameraViewer(QMainWindow):
@@ -25,6 +49,7 @@ class CameraViewer(QMainWindow):
         super().__init__()
         self.node = node
         self.setWindowTitle("Camera Viewer")
+        self.setWindowIcon(QIcon(os.path.join(ICONS_DIR, 'astroviz_icon.png')))
         
         self.bridge = CvBridge()
         self.image_sub = None

@@ -36,10 +36,36 @@ from PyQt6.QtWidgets import (
     QVBoxLayout, QPushButton, QLabel
 )
 from PyQt6.QtCore    import pyqtSignal, Qt
-from PyQt6.QtGui     import QMatrix4x4, QVector4D, QPalette, QColor, QFont
+from PyQt6.QtGui     import QMatrix4x4, QVector4D, QPalette, QColor, QFont, QIcon
 import pyqtgraph.opengl as gl
 
-from astroviz.utils.window_style import DarkStyle, LightStyle
+from ament_index_python.packages import get_package_share_directory
+
+
+from astroviz.utils.window_style import DarkStyle
+from astroviz.utils._find import _find_pkg, _find_src_config
+
+_src_config = _find_src_config()
+if _src_config:
+    _CONFIG_DIR = _src_config
+else:
+    _CONFIG_DIR = os.path.join(
+        get_package_share_directory('astroviz'), 'config'
+    )
+
+
+_pkg = _find_pkg()
+if _pkg:
+    _PKG_DIR = _pkg
+else:
+    _PKG_DIR = get_package_share_directory('astroviz')
+
+os.makedirs(_CONFIG_DIR, exist_ok=True)
+
+CONFIG_PATH = os.path.join(_CONFIG_DIR, 'dashboard_config.json')
+ICONS_DIR  = os.path.join(_PKG_DIR, 'icons')
+
+
 
 def quaternion_to_matrix(q):
     w, x, y, z = q.w, q.x, q.y, q.z
@@ -59,6 +85,7 @@ class RobotStateViewer(QMainWindow):
         self.render_tf = True
         self.render_urdf = True
         self.setWindowTitle('Robot State Viewer')
+        self.setWindowIcon(QIcon(os.path.join(ICONS_DIR, 'astroviz_icon.png')))
         self.resize(800, 600)
 
         self.node.create_subscription(
