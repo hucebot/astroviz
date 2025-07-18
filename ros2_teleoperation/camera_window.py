@@ -17,14 +17,14 @@ from rclpy.qos import QoSProfile
 from sensor_msgs.msg import Image
 from cv_bridge import CvBridge
 
-from ros2_teleoperation.utils.window_style import WindowStyle
+from ros2_teleoperation.utils.window_style import DarkStyle
 
 
 class CameraViewer(QMainWindow):
     def __init__(self, node: Node):
         super().__init__()
         self.node = node
-        self.setWindowTitle("Camera Viewer - ROS2")
+        self.setWindowTitle("Camera Viewer")
         
         self.bridge = CvBridge()
         self.image_sub = None
@@ -136,7 +136,7 @@ class CameraViewer(QMainWindow):
 def main(args=None):
     rclpy.init(args=args)
     app = QApplication(sys.argv)
-    WindowStyle(app)
+    DarkStyle(app)
     
     node = rclpy.create_node('camera_viewer')
     window = CameraViewer(node)

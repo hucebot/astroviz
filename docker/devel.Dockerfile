@@ -29,7 +29,7 @@ RUN apt-get update && \
     python3 -m pip install --no-cache-dir \
       v4l2py opencv-contrib-python pyserial scipy \
       PyQt6 PyQt6-WebEngine pyqtgraph termcolor ping3 \
-      shapely cython pyshp six cartopy folium && \
+      shapely cython pyshp six cartopy folium  urdfpy && \
     rm -rf /var/lib/apt/lists/* ~/.cache/pip
 
 ##### Install ROS 2 Humble
@@ -51,5 +51,29 @@ RUN export ROS_APT_SRC_VER=$(curl -s https://api.github.com/repos/ros-infrastruc
 # Fuente automática de ROS en cada terminal
 RUN echo "source /opt/ros/$ROS_DISTRO/setup.bash" >> /etc/bash.bashrc
 
-WORKDIR /workspace
+RUN pip install --upgrade "pybind11>=2.12" "numpy<2"
+RUN pip install urdfpy PyQt6-Charts
+
+
+RUN mkdir -p /ros2_ws/src
+
+RUN  apt update
+RUN  apt -q -qq update && apt install -y --allow-unauthenticated \
+  gstreamer1.0-plugins-good \ 
+  gstreamer1.0-plugins-bad \
+  gstreamer1.0-plugins-rtp \
+  gstreamer1.0-plugins-ugly \
+  gstreamer1.0-libav \
+  gstreamer1.0-tools \
+  python3-gst-1.0 \
+  libgstreamer1.0-dev \
+  net-tools curl
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      gstreamer1.0-plugins-base && \
+    # genera la registry.bin en build para no arrancar el plugin-scanner en runtime
+    gst-inspect-1.0 > /dev/null && \
+    rm -rf /var/lib/apt/lists/*
+
+
 CMD ["bash"]

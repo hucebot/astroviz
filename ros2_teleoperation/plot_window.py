@@ -17,7 +17,7 @@ from ping3 import ping
 from ping3.errors import PingError
 from collections import deque
 
-from ros2_teleoperation.utils.window_style import WindowStyle
+from ros2_teleoperation.utils.window_style import DarkStyle
 
 class GraphViewer(QWidget):
     def __init__(self, node: Node, parent=None):
@@ -151,7 +151,7 @@ class GraphViewer(QWidget):
 def main(args=None):
     rclpy.init(args=args)
     app = QApplication(sys.argv)
-    WindowStyle(app)
+    DarkStyle(app)
     node = rclpy.create_node('graph_viewer_node')
     win = GraphViewer(node)
     win.show()

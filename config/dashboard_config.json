@@ -1,24 +1,25 @@
 {
   "views": [
-    "GPS Map",
+    "Orthogonal",
     "LiDAR",
     "Camera",
     "System Health",
     "IMU"
   ],
+  "actual_style": "dark",
   "splitter_sizes": {
     "top": [
-      768,
-      1148
+      908,
+      1008
     ],
     "bottom": [
-      769,
-      743,
-      400
+      605,
+      1005,
+      302
     ],
     "main": [
-      600,
-      438
+      598,
+      436
     ]
   }
 }

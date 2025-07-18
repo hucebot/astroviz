@@ -12,7 +12,7 @@ from rclpy.node import Node
 from sensor_msgs.msg import Joy
 
 from ros2_teleoperation.camera_window import CameraViewer
-from ros2_teleoperation.utils.window_style import WindowStyle
+from ros2_teleoperation.utils.window_style import DarkStyle
 
 
 class JoystickWidget(QWidget):
@@ -76,7 +76,6 @@ class JoystickWidget(QWidget):
             ev.ignore()
 
     def normalized(self):
-        """Devuelve (x,y) en [-1,1], invirtiendo y para que 'up' sea positivo."""
         max_offset = self.radius - self.stick_radius
         x = self.stick_pos.x() / max_offset
         y = -self.stick_pos.y() / max_offset
@@ -137,7 +136,7 @@ class TeleoperationViewer(QMainWindow):
 def main(args=None):
     rclpy.init(args=args)
     app = QApplication(sys.argv)
-    WindowStyle(app)
+    DarkStyle(app)
 
     node = rclpy.create_node('teleoperation_viewer')
     win = TeleoperationViewer(node)
