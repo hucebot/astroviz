@@ -2,24 +2,24 @@
   "views": [
     "RobotState",
     "LiDAR",
-    "System Health",
+    "Camera",
     "System Health",
     "IMU"
   ],
   "actual_style": "dark",
   "splitter_sizes": {
     "top": [
-      877,
-      973
+      908,
+      1008
     ],
     "bottom": [
-      409,
-      1145,
-      292
+      605,
+      1005,
+      302
     ],
     "main": [
-      650,
-      474
+      598,
+      436
     ]
   }
 }

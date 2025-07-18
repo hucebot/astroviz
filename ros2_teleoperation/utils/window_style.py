@@ -27,6 +27,8 @@ def DarkStyle(app: QApplication):
     app.setPalette(dark_palette)
     app.setStyleSheet(
         "QToolTip { color: #ffffff; background-color: #2a82da; border: 1px solid white; }"
+        "QPushButton:checked { background-color: green; color: white; }"
+        "QPushButton { background-color: #353535; color: white; border: 1px solid #555555; padding: 4px; }"
     )
 
 def LightStyle(app: QApplication):

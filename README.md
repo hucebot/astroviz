@@ -88,8 +88,8 @@ This package nodes that are designed to facilitate teleoperation and visualizati
 - **teleoperation_viewer**: Provides a GUI for teleoperation control.
 - **dashboard_viewer**: A comprehensive dashboard that integrates various data streams and provides a unified interface for monitoring and control.
 - **plot_viewer**: Displays real-time plots of various data streams.
-- **gridmap_viewer**: Visualizes grid map data for navigation and planning.
-- **robotstate_viewer**: Displays the current state of the robot, including position, orientation, and other relevant metrics.
+- **grid_map_viewer**: Visualizes grid map data for navigation and planning.
+- **robot_state_viewer**: Displays the current state of the robot related to the joint positions and transformations.
 
 
 ### Running Nodes
