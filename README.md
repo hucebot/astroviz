@@ -12,7 +12,7 @@ This is a ROS2 package designed for teleoperation, featuring a GPS map viewer an
   <tr>
     <td colspan="2" align="center">
       <strong>DASHBOARD VIEWER</strong><br>
-      <img src="https://github.com/CDonosoK/astroviz/blob/main/images/dashboard.gif" alt="Teleoperation Overview" width="850">
+      <img src="https://github.com/CDonosoK/astroviz/blob/main/images/dashboard.gif" alt="Teleoperation Overview" width="800">
     </td>
   </tr>
 </table>
