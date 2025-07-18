@@ -1,4 +1,4 @@
-# TELEOPERATION ROS2
+# AstroViz
 
 [![License](https://img.shields.io/badge/License-MIT--Clause-blue.svg)](https://opensource.org/licenses/MIT)
 [![ROS2 Version](https://img.shields.io/badge/ROS-Humble-green)](https://docs.ros.org/en/humble/index.html)
@@ -10,7 +10,7 @@ This is a ROS2 package designed for teleoperation, featuring a GPS map viewer an
   <tr>
     <td colspan="2" align="center">
       <strong>DASHBOARD VIEWER</strong><br>
-      <img src="https://github.com/CDonosoK/ros2_teleoperation/blob/main/images/dashboard.gif" alt="Teleoperation Overview" width="850">
+      <img src="https://github.com/CDonosoK/astroviz/blob/main/images/dashboard.gif" alt="Teleoperation Overview" width="850">
     </td>
   </tr>
 </table>
@@ -55,20 +55,20 @@ To run this package, ensure the following dependencies are installed:
 #### Clone the Repository
 Start by cloning the repository:
 ```bash
-git clone git@github.com:CDonosoK/ros2_teleoperation.git
+git clone git@github.com:CDonosoK/astroviz.git
 ```
 
 #### Build Using Docker
 This repository includes a pre-configured Docker setup for easy deployment. To build the Docker image:
 1. Navigate to the `docker` directory:
    ```bash
-   cd ros2_teleoperation/docker
+   cd astroviz/docker
    ```
 2. Run the build script:
    ```bash
    sh build.sh
    ```
-   This will create a Docker image named `ros2_teleoperation`.
+   This will create a Docker image named `astroviz`.
 
 #### Run the Docker Container
 Once built, launch the container using:
@@ -95,13 +95,13 @@ This package nodes that are designed to facilitate teleoperation and visualizati
 ### Running Nodes
 To run the nodes, you can use the following command:
 ```bash
-ros2 run ros2_teleoperation <node_name>
+ros2 run astroviz <node_name>
 ```
 Replace `<node_name>` with the name of the node you wish to run, such as `gps_map_viewer`, `camera_viewer`, etc.
 
 Or if you prefer to run the dashboard viewer, which integrates all functionalities:
 ```bash
-ros2 run ros2_teleoperation dashboard_viewer
+ros2 run astroviz dashboard_viewer
 ```
 
 ## Maintainer

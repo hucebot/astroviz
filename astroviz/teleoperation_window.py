@@ -11,8 +11,8 @@ import rclpy
 from rclpy.node import Node
 from sensor_msgs.msg import Joy
 
-from ros2_teleoperation.camera_window import CameraViewer
-from ros2_teleoperation.utils.window_style import DarkStyle
+from astroviz.camera_window import CameraViewer
+from astroviz.utils.window_style import DarkStyle
 
 
 class JoystickWidget(QWidget):

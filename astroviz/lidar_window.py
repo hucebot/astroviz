@@ -17,7 +17,7 @@ from PyQt6.QtCore import QTimer
 import pyqtgraph.opengl as gl
 import pyqtgraph as pg
 
-from ros2_teleoperation.utils.window_style import DarkStyle, LightStyle
+from astroviz.utils.window_style import DarkStyle, LightStyle
 
 class LiDARViewer(QMainWindow):
     def showEvent(self, event):

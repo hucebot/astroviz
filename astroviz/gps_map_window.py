@@ -21,8 +21,8 @@ from PyQt6.QtGui import QFont, QPixmap
 from PyQt6.QtCore import Qt, QTimer, QUrl
 from PyQt6.QtWebEngineWidgets import QWebEngineView
 
-from ros2_teleoperation.utils.window_style import DarkStyle
-from ros2_teleoperation.utils._find import _find_pkg
+from astroviz.utils.window_style import DarkStyle
+from astroviz.utils._find import _find_pkg
 
 from ament_index_python.packages import get_package_share_directory
 
@@ -39,7 +39,7 @@ _pkg = _find_pkg()
 if _pkg:
     _PKG_DIR = _pkg
 else:
-    _PKG_DIR = get_package_share_directory('ros2_teleoperation')
+    _PKG_DIR = get_package_share_directory('astroviz')
 
 ICONS_DIR  = os.path.join(_PKG_DIR, 'icons')
 

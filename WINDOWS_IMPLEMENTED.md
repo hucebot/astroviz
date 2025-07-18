@@ -1,6 +1,6 @@
 # Implemented Windows
 
-This document lists all the GUI windows currently available in the `ros2_teleoperation` package, including a brief description and representative image.
+This document lists all the GUI windows currently available in the `astroviz` package, including a brief description and representative image.
 
 | Name           | Image                                                                 | Description                                                                 |
 |----------------|------------------------------------------------------------------------|-----------------------------------------------------------------------------|

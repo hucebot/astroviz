@@ -18,7 +18,7 @@ from PyQt6.QtGui import QFont
 import pyqtgraph as pg
 from pyqtgraph import ScatterPlotItem, TextItem, PlotDataItem
 
-from ros2_teleoperation.utils.window_style import DarkStyle
+from astroviz.utils.window_style import DarkStyle
 
 class GridMapViewer(QMainWindow):
     def __init__(self, node: Node):
