@@ -1,14 +1,17 @@
 #!/usr/bin/env python3
 import sys
+import os
 import threading
-import collections, collections.abc
 import math
 import fractions
-# Monkey‑patch networkx/urdfpy if needed
-collections.Mapping   = collections.abc.Mapping
-collections.Set       = collections.abc.Set
-collections.Iterable  = collections.abc.Iterable
-fractions.gcd         = math.gcd
+import tempfile
+# Monkey-patch deprecated imports for urdfpy/networkx compatibility
+import collections
+import collections.abc
+collections.Mapping = collections.abc.Mapping
+collections.Set = collections.abc.Set
+collections.Iterable = collections.abc.Iterable
+fractions.gcd = math.gcd
 
 import numpy as np
 # restore deprecated numpy aliases
@@ -21,9 +24,17 @@ from rclpy.qos import QoSProfile, DurabilityPolicy
 from tf2_msgs.msg import TFMessage
 import tf2_ros
 
+from urdfpy import URDF
+import trimesh
+
 from PyQt6.QtWidgets import QApplication, QMainWindow, QWidget, QVBoxLayout
 from PyQt6.QtCore    import pyqtSignal, Qt
+from PyQt6.QtGui     import QMatrix4x4, QVector4D
 import pyqtgraph.opengl as gl
+
+ORIGINAL_URDF_PATH = '/ros2_ws/src/g1_description/description_files/urdf/g1_29dof.urdf'
+MESH_DIR          = '/ros2_ws/src/g1_description/description_files/meshes/'
+
 
 def quaternion_to_matrix(q):
     w, x, y, z = q.w, q.x, q.y, q.z
@@ -38,119 +49,138 @@ class TFViewer(QMainWindow):
 
     def __init__(self, node: Node, root_frame: str = 'pelvis'):
         super().__init__()
-        self.node       = node
+        self.node = node
         self.root_frame = root_frame
-        self.setWindowTitle("TF Frames Viewer (event‑driven)")
+        self.setWindowTitle('TF Frames Viewer + URDF')
         self.resize(800, 600)
 
-        self.tf_buffer   = tf2_ros.Buffer()
+        self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer, node)
 
-        self.latest_transforms = {}
+        self.mesh_items = []
 
         w = QWidget()
         self.setCentralWidget(w)
         layout = QVBoxLayout(w)
-        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setContentsMargins(0,0,0,0)
 
         self.gl_view = gl.GLViewWidget()
         self.gl_view.opts['distance'] = 1.0
         layout.addWidget(self.gl_view)
 
         grid = gl.GLGridItem()
-        grid.scale(0.1, 0.1, 0.1)
+        grid.scale(0.1,0.1,0.1)
         self.gl_view.addItem(grid)
 
+        # TF scatter + axes
         self.scatter = gl.GLScatterPlotItem()
-        self.gl_view.addItem(self.scatter)
-
         self.x_axes = gl.GLLinePlotItem(color=(1,0,0,1), width=2, mode='lines')
         self.y_axes = gl.GLLinePlotItem(color=(0,1,0,1), width=2, mode='lines')
         self.z_axes = gl.GLLinePlotItem(color=(0,0,1,1), width=2, mode='lines')
-        self.gl_view.addItem(self.x_axes)
-        self.gl_view.addItem(self.y_axes)
-        self.gl_view.addItem(self.z_axes)
+        for item in (self.scatter, self.x_axes, self.y_axes, self.z_axes):
+            self.gl_view.addItem(item)
 
         self.update_signal.connect(self._update_view, Qt.ConnectionType.QueuedConnection)
 
-        self.node.create_subscription(
-            TFMessage, '/tf', self._tf_callback, qos_profile=10
-        )
+        self.node.create_subscription(TFMessage, '/tf', self._tf_callback, qos_profile=10)
         static_qos = QoSProfile(depth=10)
         static_qos.durability = DurabilityPolicy.TRANSIENT_LOCAL
-        self.node.create_subscription(
-            TFMessage, '/tf_static', self._tf_callback, qos_profile=static_qos
-        )
+        self.node.create_subscription(TFMessage, '/tf_static', self._tf_callback, qos_profile=static_qos)
+
+        self._load_urdf()
+
+    def _load_urdf(self):
+
+        xml = open(ORIGINAL_URDF_PATH, 'r').read()
+        xml_fixed = xml.replace('package://g1_description/description_files/meshes/', MESH_DIR)
+        tmp = tempfile.NamedTemporaryFile(delete=False, suffix='.urdf')
+        tmp.write(xml_fixed.encode()); tmp.flush(); tmp.close()
+
+        urdf = URDF.load(tmp.name)
+        for link in urdf.links:
+            for visual in link.visuals:
+                fn = visual.geometry.mesh.filename
+                mesh_path = fn if os.path.isabs(fn) else os.path.join(MESH_DIR, fn)
+                tm = trimesh.load_mesh(mesh_path, process=False)
+                verts = tm.vertices.view(np.ndarray)
+                faces = tm.faces.view(np.ndarray)
+                item = gl.GLMeshItem(vertexes=verts, faces=faces, smooth=False,
+                                     drawEdges=True, edgeColor=(0.5,0.5,0.5,1),
+                                     drawFaces=True, faceColor=(0.7,0.7,0.7,1))
+                self.gl_view.addItem(item)
+
+                T_lv = np.array(visual.origin, dtype=np.float32)
+                self.mesh_items.append((item, link.name, T_lv))
 
     def _tf_callback(self, msg: TFMessage):
         if msg.transforms:
             self.update_signal.emit()
 
     def _update_view(self):
-        all_lines = self.tf_buffer.all_frames_as_string().splitlines()
-        frame_ids = [L.split()[1] for L in all_lines if L.startswith('Frame ')]
+        lines = self.tf_buffer.all_frames_as_string().splitlines()
+        frames = [L.split()[1] for L in lines if L.startswith('Frame ')]
+
+        for item, link_name, T_lv in self.mesh_items:
+            try:
+                tf = self.tf_buffer.lookup_transform(self.root_frame, link_name, rclpy.time.Time())
+            except (tf2_ros.LookupException, tf2_ros.ConnectivityException, tf2_ros.ExtrapolationException):
+                continue
+            t = tf.transform.translation; q = tf.transform.rotation
+            T_tf = np.eye(4, dtype=np.float32)
+            T_tf[:3,:3] = quaternion_to_matrix(q)
+            T_tf[:3,3] = [t.x, t.y, t.z]
+            T = T_tf @ T_lv
+            mat = QMatrix4x4()
+            for i in range(4):
+                mat.setRow(i, QVector4D(*T[i,:]))
+            item.setTransform(mat)
 
         mats = []
-        for child in frame_ids:
-            if child == self.root_frame:
+        for f in frames:
+            if f == self.root_frame:
                 continue
             try:
-                tf = self.tf_buffer.lookup_transform(
-                    self.root_frame, child, rclpy.time.Time()
-                )
-            except (tf2_ros.LookupException,
-                    tf2_ros.ConnectivityException,
-                    tf2_ros.ExtrapolationException):
+                tf = self.tf_buffer.lookup_transform(self.root_frame, f, rclpy.time.Time())
+            except:
                 continue
-
-            t = tf.transform.translation
-            q = tf.transform.rotation
-            rot3 = quaternion_to_matrix(q)
+            t = tf.transform.translation; q = tf.transform.rotation
             M = np.eye(4, dtype=np.float32)
-            M[:3, :3] = rot3
-            M[:3,  3] = [t.x, t.y, t.z]
+            M[:3,:3] = quaternion_to_matrix(q)
+            M[:3,3] = [t.x, t.y, t.z]
             mats.append(M)
-
         if not mats:
             return
-
         pts = np.vstack([M[:3,3] for M in mats])
         self.scatter.setData(pos=pts, size=5, color=(1,1,0,0.8))
-
         N = len(mats)
-        axis_len = 0.1
-        x_lines = np.zeros((2*N,3), dtype=np.float32)
-        y_lines = np.zeros((2*N,3), dtype=np.float32)
-        z_lines = np.zeros((2*N,3), dtype=np.float32)
-
+        L = 0.1
+        x = np.zeros((2*N,3), dtype=np.float32)
+        y = np.zeros_like(x)
+        z = np.zeros_like(x)
         for i, M in enumerate(mats):
-            origin = M[:3,3]
-            R      = M[:3,:3]
-            x_end = origin + R @ np.array([axis_len,0,0], dtype=np.float32)
-            y_end = origin + R @ np.array([0,axis_len,0], dtype=np.float32)
-            z_end = origin + R @ np.array([0,0,axis_len], dtype=np.float32)
-            x_lines[2*i]   = origin; x_lines[2*i+1]   = x_end
-            y_lines[2*i]   = origin; y_lines[2*i+1]   = y_end
-            z_lines[2*i]   = origin; z_lines[2*i+1]   = z_end
+            o = M[:3,3]
+            R = M[:3,:3]
+            x[2*i] = o
+            x[2*i+1] = o + R @ np.array([L,0,0], dtype=np.float32)
+            y[2*i] = o
+            y[2*i+1] = o + R @ np.array([0,L,0], dtype=np.float32)
+            z[2*i] = o
+            z[2*i+1] = o + R @ np.array([0,0,L], dtype=np.float32)
+        self.x_axes.setData(pos=x)
+        self.y_axes.setData(pos=y)
+        self.z_axes.setData(pos=z)
 
-        self.x_axes.setData(pos=x_lines)
-        self.y_axes.setData(pos=y_lines)
-        self.z_axes.setData(pos=z_lines)
 
 def main():
     rclpy.init()
     node = rclpy.create_node('tf_viewer')
-
-    spin_thread = threading.Thread(target=rclpy.spin, args=(node,), daemon=True)
-    spin_thread.start()
-
+    threading.Thread(target=rclpy.spin, args=(node,), daemon=True).start()
     app = QApplication(sys.argv)
-    viewer = TFViewer(node, root_frame='pelvis')
+    viewer = TFViewer(node)
     viewer.show()
     app.exec()
-
     node.destroy_node()
     rclpy.shutdown()
 
-if __name__ == '__main__':
+if __name__=='__main__':
     main()
