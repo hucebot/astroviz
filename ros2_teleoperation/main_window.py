@@ -1,39 +1,31 @@
 #!/usr/bin/env python3
+# main_window.py
 
 import sys
 import os
 import json
-import threading
 import rclpy
 from rclpy.node import Node
 from ament_index_python.packages import get_package_share_directory
+
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QSplitter,
     QVBoxLayout, QHBoxLayout, QComboBox, QLabel, QPushButton
 )
 from PyQt6.QtCore import Qt, QTimer
+from PyQt6.QtGui import QIcon, QPixmap
 
 from ros2_teleoperation.gps_map_window import GPSMapWindow
 from ros2_teleoperation.camera_window import CameraViewer
 from ros2_teleoperation.imu_window import MainWindow as IMUWindow
 from ros2_teleoperation.lidar_window import LiDARViewer
 from ros2_teleoperation.teleoperation_window import TeleoperationViewer
+
 from ros2_teleoperation.utils.window_style import DarkStyle, LightStyle
 from ros2_teleoperation.utils.windows_implemented import VIEW_TYPES
+from ros2_teleoperation.utils._find import _find_pkg, _find_src_config
 from termcolor import colored
 
-
-def _find_src_config():
-    cwd = os.getcwd()
-    while True:
-        candidate = os.path.join(cwd, 'src', 'ros2_teleoperation', 'config')
-        if os.path.isdir(candidate):
-            return candidate
-        parent = os.path.dirname(cwd)
-        if parent == cwd:
-            break
-        cwd = parent
-    return None
 
 _src_config = _find_src_config()
 if _src_config:
@@ -42,9 +34,17 @@ else:
     _CONFIG_DIR = os.path.join(
         get_package_share_directory('ros2_teleoperation'), 'config'
     )
-os.makedirs(_CONFIG_DIR, exist_ok=True)
-CONFIG_PATH = os.path.join(_CONFIG_DIR, 'dashboard_config.json')
 
+_pkg = _find_pkg()
+if _pkg:
+    _PKG_DIR = _pkg
+else:
+    _PKG_DIR = get_package_share_directory('ros2_teleoperation')
+
+os.makedirs(_CONFIG_DIR, exist_ok=True)
+
+CONFIG_PATH = os.path.join(_CONFIG_DIR, 'dashboard_config.json')
+ICONS_DIR  = os.path.join(_PKG_DIR, 'icons')
 
 class Panel(QWidget):
     def __init__(self, node: Node, initial_view: str, parent=None):
@@ -95,26 +95,37 @@ class Panel(QWidget):
         layout.addWidget(widget)
         self.current_widget = widget
 
-
 class TeleoperationDashboard(QMainWindow):
     def __init__(self, node: Node):
         super().__init__()
         self.setWindowFlags(Qt.WindowType.FramelessWindowHint)
         self.node = node
+        self.actual_style = 'dark'
         self.setWindowTitle("Teleoperation Dashboard")
-        # take dimensions from the screen
+
         screen = QApplication.primaryScreen()
         if screen:
-            geometry = screen.geometry()
-            self.setGeometry(geometry)
+            self.setGeometry(screen.geometry())
         else:
             self.setGeometry(100,100,1920,1080)
         self.setMinimumSize(1200,800)
 
-        self.save_btn = QPushButton("Save Config")
+        self.icon_sun  = QIcon(QPixmap(os.path.join(ICONS_DIR, 'light_style.png')))
+        self.icon_moon = QIcon(QPixmap(os.path.join(ICONS_DIR, 'dark_style.png')))
+
+        self.save_btn         = QPushButton("Save Config")
+        self.load_btn         = QPushButton("Load Config")
+        self.change_style_btn = QPushButton()
+        self.change_style_btn.setIcon(self.icon_sun)
+        self.close_btn        = QPushButton('✕')
+        self.close_btn.setStyleSheet(
+            'background-color: red; color: white; border: none; font-weight: bold;'
+        )
+
         self.save_btn.clicked.connect(self.save_config)
-        self.load_btn = QPushButton("Load Config")
         self.load_btn.clicked.connect(self.load_config)
+        self.change_style_btn.clicked.connect(self.toggle_style)
+        self.close_btn.clicked.connect(self.close)
 
         toolbar = QWidget()
         tlay = QHBoxLayout(toolbar)
@@ -122,13 +133,8 @@ class TeleoperationDashboard(QMainWindow):
         tlay.setSpacing(10)
         tlay.addWidget(self.save_btn)
         tlay.addWidget(self.load_btn)
-
-        self.close_btn = QPushButton('✕')
-        self.close_btn.setStyleSheet(
-            'background-color: red; color: white; border: none; font-weight: bold;'
-        )
-        self.close_btn.clicked.connect(self.close)
         tlay.addStretch(1)
+        tlay.addWidget(self.change_style_btn)
         tlay.addWidget(self.close_btn)
 
         self.panel_tl = Panel(node, 'GPS Map')
@@ -162,6 +168,19 @@ class TeleoperationDashboard(QMainWindow):
 
         self.load_config()
 
+    def toggle_style(self):
+        app = QApplication.instance()
+        if self.actual_style == 'dark':
+            LightStyle(app)
+            self.actual_style = 'light'
+            self.change_style_btn.setIcon(self.icon_moon)
+            self.node.get_logger().info(colored("Switched to Light Style", 'green'))
+        else:
+            DarkStyle(app)
+            self.actual_style = 'dark'
+            self.change_style_btn.setIcon(self.icon_sun)
+            self.node.get_logger().info(colored("Switched to Dark Style", 'green'))
+
     def save_config(self):
         conf = {
             'views': [
@@ -171,6 +190,7 @@ class TeleoperationDashboard(QMainWindow):
                 self.panel_bm.combo.currentText(),
                 self.panel_br.combo.currentText(),
             ],
+            'actual_style': self.actual_style,
             'splitter_sizes': {
                 'top': self.top_split.sizes(),
                 'bottom': self.bottom_split.sizes(),
@@ -187,56 +207,33 @@ class TeleoperationDashboard(QMainWindow):
         try:
             with open(CONFIG_PATH,'r') as f:
                 conf = json.load(f)
-            views = conf.get('views', [])
+            if 'actual_style' in conf:
+                app = QApplication.instance()
+                if conf['actual_style'] == 'dark':
+                    DarkStyle(app)
+                    self.actual_style = 'dark'
+                    self.change_style_btn.setIcon(self.icon_sun)
+                else:
+                    LightStyle(app)
+                    self.actual_style = 'light'
+                    self.change_style_btn.setIcon(self.icon_moon)
+
             panels = [
                 self.panel_tl, self.panel_tr,
                 self.panel_bl, self.panel_bm, self.panel_br
             ]
-            for panel, name in zip(panels, views):
+            for panel, name in zip(panels, conf.get('views', [])):
                 if name in VIEW_TYPES:
                     panel.combo.setCurrentText(name)
+
             sizes = conf.get('splitter_sizes', {})
-            if 'top' in sizes:
-                self.top_split.setSizes(sizes['top'])
-            if 'bottom' in sizes:
-                self.bottom_split.setSizes(sizes['bottom'])
-            if 'main' in sizes:
-                self.main_split.setSizes(sizes['main'])
+            if 'top' in sizes:    self.top_split.setSizes(sizes['top'])
+            if 'bottom' in sizes: self.bottom_split.setSizes(sizes['bottom'])
+            if 'main' in sizes:   self.main_split.setSizes(sizes['main'])
+
             self.node.get_logger().info(colored("Configuration loaded successfully!", 'green'))
         except Exception as e:
             self.node.get_logger().error(colored(f"Failed to load config: {e}", 'red'))
-
-    def remove_view_option(self, view_name: str):
-        for panel in (self.panel_tl, self.panel_tr,
-                      self.panel_bl, self.panel_bm, self.panel_br):
-            idx = panel.combo.findText(view_name)
-            if idx != -1:
-                panel.combo.removeItem(idx)
-
-    def add_view_option(self, view_name: str):
-        if view_name not in VIEW_TYPES:
-            return
-        for panel in (self.panel_tl, self.panel_tr,
-                      self.panel_bl, self.panel_bm, self.panel_br):
-            if panel.combo.findText(view_name) == -1:
-                panel.combo.addItem(view_name)
-
-    def hide_panel(self, position: str):
-        panel = getattr(self, f'panel_{position}', None)
-        if not panel:
-            return
-        splitter = self.top_split if position in ('tl','tr') else self.bottom_split
-        splitter.removeWidget(panel)
-        panel.setParent(None)
-
-    def show_panel(self, position: str):
-        panel = getattr(self, f'panel_{position}', None)
-        if not panel:
-            return
-        splitter = self.top_split if position in ('tl','tr') else self.bottom_split
-        if panel.parent() is None:
-            splitter.addWidget(panel)
-
 
 def main(args=None):
     rclpy.init(args=args)
@@ -252,7 +249,6 @@ def main(args=None):
     app.exec()
     node.destroy_node()
     rclpy.shutdown()
-
 
 if __name__ == '__main__':
     main()

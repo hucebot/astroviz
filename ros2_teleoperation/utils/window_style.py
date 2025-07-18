@@ -1,9 +1,10 @@
 from PyQt6.QtWidgets import QApplication
 from PyQt6.QtGui import QColor, QPalette
 from PyQt6.QtCore import Qt
+from PyQt6.QtWidgets import QStyleFactory
 
 def DarkStyle(app: QApplication):
-    app.setStyle('Fusion')
+    app.setStyle(QStyleFactory.create('Fusion'))
     dark_palette = QPalette()
 
     dark_palette.setColor(QPalette.ColorRole.Window, QColor(0, 0, 0))
@@ -29,7 +30,7 @@ def DarkStyle(app: QApplication):
     )
 
 def LightStyle(app: QApplication):
-    app.setStyle('Fusion')
+    app.setStyle(QStyleFactory.create('Fusion'))
     light_palette = QPalette()
 
     light_palette.setColor(QPalette.ColorRole.Window, QColor(255, 255, 255))
