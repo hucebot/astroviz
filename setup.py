@@ -20,7 +20,7 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-            'dashboard_viewer = astroviz.main_window:main',
+            'dashboard_viewer = astroviz.dashboard_window:main',
             'gps_map_viewer = astroviz.gps_map_window:main',
             'camera_viewer = astroviz.camera_window:main',
             'lidar_viewer = astroviz.lidar_window:main',
@@ -31,6 +31,7 @@ setup(
             'orthogonal_viewer = astroviz.orthogonal_window:main',
             'gstreamer_viewer = astroviz.gstreamer_window:main',
             'robot_state_viewer = astroviz.robot_state_window:main',
+            'motor_state_viewer = astroviz.motor_state_viewer:main',
         ],
     },
 )

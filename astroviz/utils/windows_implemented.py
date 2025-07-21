@@ -7,6 +7,7 @@ from astroviz.plot_window import GraphViewer
 from astroviz.grid_map_window import GridMapViewer
 from astroviz.orthogonal_window import OrthogonalViewer
 from astroviz.robot_state_window import RobotStateViewer
+from astroviz.motor_state_viewer import MotorTableViewer      
 
 VIEW_TYPES = {
     'GPS Map': GPSMapWindow,
@@ -17,4 +18,5 @@ VIEW_TYPES = {
     'System Health': GraphViewer,
     'GridMap': GridMapViewer,
     'Orthogonal': OrthogonalViewer,
+    'Motor State': MotorTableViewer
 }

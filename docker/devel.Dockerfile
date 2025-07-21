@@ -75,5 +75,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     gst-inspect-1.0 > /dev/null && \
     rm -rf /var/lib/apt/lists/*
 
+WORKDIR /ros2_ws/src
+RUN git clone https://github.com/CDonosoK/astroviz_interfaces.git
+
 
 CMD ["bash"]
