@@ -17,6 +17,6 @@ VIEW_TYPES = {
     'Teleoperation': TeleoperationViewer,
     'System Health': GraphViewer,
     'GridMap': GridMapViewer,
-    'Orthogonal': OrthogonalViewer,
+    'Robot State': RobotStateViewer,
     'Motor State': MotorTableViewer
 }
