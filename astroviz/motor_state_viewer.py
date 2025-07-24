@@ -6,6 +6,7 @@ import os
 import rclpy
 from rclpy.node import Node
 from astroviz_interfaces.msg import MotorStateList
+from astroviz.utils.status_led import StatusLed
 from PyQt6.QtWidgets import (
     QWidget, QTableWidget, QTableWidgetItem,
     QVBoxLayout, QHBoxLayout, QApplication, QHeaderView, QLabel, QComboBox
@@ -37,15 +38,23 @@ class MotorTableViewer(QWidget):
         self.topic_combo = QComboBox()
         self.topic_combo.addItem('---')
         self.topic_combo.currentTextChanged.connect(self._change_topic)
+        self.topic_combo.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToContents)
+        self.topic_combo.setMinimumContentsLength(20)
         header_layout.addWidget(self.topic_combo)
         header_layout.addStretch(1)
         main_layout.addLayout(header_layout)
 
         self.table = QTableWidget()
-        cols = ['Name', 'Temperature (°C)', 'Voltage (V)']
+        cols = ['Status', 'Name', 'Temperature (°C)', 'Voltage (V)']
         self.table.setColumnCount(len(cols))
-        self.table.setHorizontalHeaderLabels(cols)
-        self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        header = self.table.horizontalHeader()
+        self.table.setHorizontalHeaderLabels(cols) 
+        header.setSectionResizeMode(0, QHeaderView.ResizeMode.Fixed)
+        header.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
+        header.setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
+        header.setSectionResizeMode(3, QHeaderView.ResizeMode.Stretch)
+
+        self.table.setColumnWidth(0, 60)
         main_layout.addWidget(self.table)
 
         self.latest_msg = None
@@ -102,20 +111,34 @@ class MotorTableViewer(QWidget):
 
         self.table.setRowCount(len(motors))
         for row, motor in enumerate(motors):
-            self._set_cell(row, 0, motor.name, bold=True)
-            self._set_cell(row, 1, f"{motor.temperature:.2f}")
-            self._set_cell(row, 2, f"{motor.voltage:.2f}")
-            color = {2: COLOR_DANGER, 1: COLOR_ANOMALOUS, 0: COLOR_NORMAL}[severity(motor)]
-            for col in range(self.table.columnCount()):
-                cell = self.table.item(row, col)
-                if cell and color:
-                    cell.setBackground(color)
+            led = StatusLed("")
+            led.set_state(severity(motor))
+            
+            container = QWidget()
+            layout = QHBoxLayout()
+            layout.setContentsMargins(0, 0, 0, 0)
+            layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            layout.addWidget(led)
+            container.setLayout(layout)
+            self.table.setCellWidget(row, 0, container)
+
+            self._set_cell(row, 1, motor.name, bold=True)
+            self._set_cell(row, 2, f"{motor.temperature:.2f}")
+            self._set_cell(row, 3, f"{motor.voltage:.2f}")
+
 
     def _set_cell(self, row: int, col: int, text: str, bold: bool=False):
         item = QTableWidgetItem(text)
         item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
-        if bold or col == 0:
-            font = item.font(); font.setBold(True); item.setFont(font)
+        
+        if col in [2, 3]:
+            item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+        
+        if bold or col == 1:
+            font = item.font()
+            font.setBold(True)
+            item.setFont(font)
+
         self.table.setItem(row, col, item)
 
 

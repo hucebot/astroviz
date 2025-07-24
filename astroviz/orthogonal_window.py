@@ -33,9 +33,9 @@ import trimesh
 
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget,
-    QVBoxLayout, QPushButton, QLabel
+    QVBoxLayout, QPushButton, QLabel, QComboBox
 )
-from PyQt6.QtCore    import pyqtSignal, Qt
+from PyQt6.QtCore    import pyqtSignal, Qt, QTimer
 from PyQt6.QtGui     import QMatrix4x4, QVector4D, QPalette, QColor, QFont, QIcon
 import pyqtgraph.opengl as gl
 
@@ -120,6 +120,11 @@ class OrthogonalViewer(QMainWindow):
         self.btn_urdf.setFixedWidth(80)
         self.btn_urdf.clicked.connect(self.toggle_urdf)
 
+        self.combo = QComboBox(self.gl_view)
+        self.combo.setFixedWidth(180)
+        self.combo.raise_()
+        self.combo.currentTextChanged.connect(self.change_topic)
+
         self.loading_label = QLabel("Loading model...", self.gl_view)
         self.loading_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.loading_label.setFont(QFont('Arial', 18, QFont.Weight.Bold))
@@ -152,6 +157,37 @@ class OrthogonalViewer(QMainWindow):
 
         self.mesh_items = []
         self.gl_view.installEventFilter(self)
+
+        self.frame_timer = QTimer(self)
+        self.frame_timer.timeout.connect(self._populate_frames)
+        self.frame_timer.start(1000)
+
+
+    def _populate_frames(self):
+        try:
+            lines = self.tf_buffer.all_frames_as_string().splitlines()
+            frames = [L.split()[1] for L in lines if L.startswith('Frame ')]
+        except Exception:
+            frames = []
+        current = self.combo.currentText()
+        items = ['---'] + frames
+        if [self.combo.itemText(i) for i in range(self.combo.count())] != items:
+            self.combo.blockSignals(True)
+            self.combo.clear()
+            self.combo.addItems(items)
+            if current in items:
+                self.combo.setCurrentText(current)
+            else:
+                self.combo.setCurrentIndex(0)
+                self.change_topic('---')
+            self.combo.blockSignals(False)
+
+
+    def change_topic(self, frame_name: str):
+        if frame_name == '---':
+            return
+        self.root_frame = frame_name
+
 
     def eventFilter(self, source, event):
         if source is self.gl_view and event.type() == event.Type.Resize:
@@ -249,6 +285,9 @@ class OrthogonalViewer(QMainWindow):
         self.btn_tf.move(x, y)
         x += self.btn_tf.width() + margin
         self.btn_urdf.move(x, y)
+        x += self.btn_urdf.width() + margin
+        self.combo.move(x, y)
+
 
     def toggle_tf(self):
         self.render_tf = self.btn_tf.isChecked()
