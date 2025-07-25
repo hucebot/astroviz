@@ -1,6 +1,6 @@
 # 🚀 AstroViz 🚀
 
-<img src="https://github.com/CDonosoK/astroviz/blob/main/images/AstroViz.png" alt="AstroViz Image" width="800" height="400">
+<img src="https://github.com/CDonosoK/astroviz/blob/main/images/AstroViz.png" alt="AstroViz Image" width="800" height="500">
 
 [![License](https://img.shields.io/badge/License-MIT--Clause-blue.svg)](https://opensource.org/licenses/MIT)
 [![ROS2 Version](https://img.shields.io/badge/ROS-Humble-green)](https://docs.ros.org/en/humble/index.html)
@@ -10,7 +10,7 @@ AstroViz is the ultimate real-time data visualization suite for ROS 2 robotic mi
 
 - 🌍 All-in-one visualization: From GPS and LiDAR to camera feeds, robot state, and motor health, AstroViz integrates multiple views into a cohesive and modern GUI.
 - ⚡ High-performance: Docker-based deployment with GPU support ensures smooth operation even in data-intensive environments.
-- 🛰️ Field-proven: Whether you’re launching autonomous vehicles, drones, or ground robots — AstroViz is your visual command center.
+- 🛰️ Field-proven: Whether you’re launching autonomous vehicles, drones, or ground robots, AstroViz is your visual command center.
 
 💡 Looking for a ROS 2 tool that goes beyond raw data and helps you make real-time decisions in the field?
 <b>AstroViz is built for that.</b>
