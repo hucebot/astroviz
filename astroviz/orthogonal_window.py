@@ -39,7 +39,7 @@ from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget,
     QVBoxLayout, QPushButton, QLabel, QComboBox
 )
-from PyQt6.QtCore    import pyqtSignal, Qt, QTimer
+from PyQt6.QtCore    import pyqtSignal, Qt, QTimer, QPoint
 from PyQt6.QtGui     import QMatrix4x4, QVector4D, QPalette, QColor, QFont, QIcon
 import pyqtgraph.opengl as gl
 
@@ -94,6 +94,9 @@ class OrthogonalViewer(QMainWindow):
         self.selected_object_name = None
         self.map_item = None
         self.map_data = None
+        self._left_pressed = False
+        self._left_dragged = False
+        self._press_pos = None
         self.world_objects_by_name = {}
 
         self.setWindowTitle('Orthogonal Viewer')
@@ -209,7 +212,6 @@ class OrthogonalViewer(QMainWindow):
         self._last_mouse_pos = None
 
         self.load_world_objects()
-        self.highlight_object('fridge')
 
 
     def map_callback(self, msg):
@@ -409,7 +411,6 @@ class OrthogonalViewer(QMainWindow):
             return
 
         self.selected_laser_topic = topic
-        self.node.get_logger().info(f"Selected LaserScan topic: {topic}")
 
         if self.laser_subscriber:
             self.laser_subscriber.destroy()
@@ -526,8 +527,6 @@ class OrthogonalViewer(QMainWindow):
                 self.map_subscriber = None
             return
 
-        self.node.get_logger().info(f"Subscribed to map topic: {topic}")
-
         if hasattr(self, 'map_subscriber') and self.map_subscriber:
             self.map_subscriber.destroy()
             self.map_subscriber = None
@@ -539,6 +538,84 @@ class OrthogonalViewer(QMainWindow):
             qos_profile=10
         )
 
+    def ray_intersect_aabb(self, ray_origin, ray_dir, bbox_min, bbox_max):
+
+        inv_dir = 1.0 / np.where(np.abs(ray_dir) < 1e-6, 1e-6, ray_dir)
+
+        t0s = (bbox_min - ray_origin) * inv_dir
+        t1s = (bbox_max - ray_origin) * inv_dir
+
+        t_near = np.max(np.minimum(t0s, t1s), axis=0)
+        t_far  = np.min(np.maximum(t0s, t1s), axis=0)
+
+        if t_far < 0 or t_near > t_far:
+            return None
+        return t_near
+
+    def _select_object_under_mouse(self, pos):
+        w, h = self.gl_view.width(), self.gl_view.height()
+        x_ndc = (2.0 * pos.x() / w) - 1.0
+        y_ndc = 1.0 - (2.0 * pos.y() / h)
+
+        proj_mat = self.gl_view.projectionMatrix()
+        view_mat = self.gl_view.viewMatrix()
+
+        mvp = proj_mat * view_mat
+        inv_mvp, invertible = mvp.inverted()
+        if not invertible:
+            return
+
+        near_clip = QVector4D(x_ndc, y_ndc, -1.0, 1.0)
+        far_clip  = QVector4D(x_ndc, y_ndc,  1.0, 1.0)
+
+        near_world4 = inv_mvp * near_clip
+        far_world4  = inv_mvp * far_clip
+
+        near_world = np.array([
+            near_world4.x()/near_world4.w(),
+            near_world4.y()/near_world4.w(),
+            near_world4.z()/near_world4.w()
+        ], dtype=np.float32)
+        far_world = np.array([
+            far_world4.x()/far_world4.w(),
+            far_world4.y()/far_world4.w(),
+            far_world4.z()/far_world4.w()
+        ], dtype=np.float32)
+
+        ray_origin = near_world
+        ray_dir = far_world - near_world
+        ray_dir /= np.linalg.norm(ray_dir)
+
+        closest = None
+        min_t = np.inf
+        for item, name, frame, T_local, verts in self.world_items:
+            T = item.transform()
+            M = np.eye(4, dtype=np.float32)
+            for i in range(4):
+                r = T.row(i)
+                M[i,:] = [r.x(), r.y(), r.z(), r.w()]
+            hw = np.hstack((verts, np.ones((verts.shape[0],1))))
+            verts_w = (M @ hw.T).T[:, :3]
+            mn, mx = verts_w.min(axis=0), verts_w.max(axis=0)
+
+            t0s = (mn - ray_origin) / ray_dir
+            t1s = (mx - ray_origin) / ray_dir
+            t_near = np.max(np.minimum(t0s, t1s))
+            t_far  = np.min(np.maximum(t0s, t1s))
+            if t_near <= t_far and t_far > 0 and t_near < min_t:
+                min_t = t_near
+                closest = name
+
+        if closest is not None:
+            self.highlight_object(closest)
+            self.selected_object_name = closest
+        else:
+            if hasattr(self, 'highlight_box'):
+                self.gl_view.removeItem(self.highlight_box)
+                del self.highlight_box
+            self.selected_object_name = None
+
+
 
     def change_fixed_frame(self, frame_name: str):
         if frame_name == 'Fixed Frame':
@@ -549,30 +626,48 @@ class OrthogonalViewer(QMainWindow):
         if source is self.gl_view:
             if event.type() == event.Type.Resize:
                 self.loading_label.setGeometry(self.gl_view.rect())
-            elif event.type() == event.Type.MouseButtonPress and event.button() == Qt.MouseButton.RightButton:
+                return False
+
+            if event.type() == event.Type.MouseButtonPress and event.button() == Qt.MouseButton.RightButton:
                 self._mouse_right_pressed = True
                 self._last_mouse_pos = event.position().toPoint()
                 return True
-            
-            elif event.type() == event.Type.MouseButtonRelease and event.button() == Qt.MouseButton.RightButton:
+
+            if event.type() == event.Type.MouseButtonRelease and event.button() == Qt.MouseButton.RightButton:
                 self._mouse_right_pressed = False
                 self._last_mouse_pos = None
                 return True
-                        
-            elif event.type() == event.Type.MouseMove and self._mouse_right_pressed and self._last_mouse_pos:
+
+            if event.type() == event.Type.MouseMove and self._mouse_right_pressed and self._last_mouse_pos:
                 delta = event.position().toPoint() - self._last_mouse_pos
                 dz = -0.01 * delta.y()
                 center = self.gl_view.opts['center']
                 new_center = QVector4D(center.x(), center.y(), center.z() + dz, 1.0)
                 self.gl_view.opts['center'] = new_center.toVector3D()
                 self._last_mouse_pos = event.position().toPoint()
-
-                if not self.mesh_items:
-                    self.gl_view.update()
-
+                self.gl_view.update() 
                 return True
 
+            if event.type() == event.Type.MouseButtonPress and event.button() == Qt.MouseButton.LeftButton:
+                self._left_pressed = True
+                self._left_dragged = False
+                self._press_pos = event.position().toPoint()
+                return False
+
+            if event.type() == event.Type.MouseMove and self._left_pressed:
+                if (event.position().toPoint() - self._press_pos).manhattanLength() > 5:
+                    self._left_dragged = True
+                return False
+
+            if event.type() == event.Type.MouseButtonRelease and event.button() == Qt.MouseButton.LeftButton:
+                if self._left_pressed and not self._left_dragged:
+                    self._select_object_under_mouse(self._press_pos)
+                self._left_pressed = False
+                self._press_pos = None
+                return False
+
         return super().eventFilter(source, event)
+
 
     def fix_urdf_path(self, urdf_string):
             def replace_package(match):
@@ -585,7 +680,6 @@ class OrthogonalViewer(QMainWindow):
         super().resizeEvent(event)
         self._position_overlays()
         self.loading_label.setGeometry(self.gl_view.rect())
-
 
     def robot_description_callback(self, msg: String):
         xml  = msg.data
@@ -674,10 +768,6 @@ class OrthogonalViewer(QMainWindow):
         self.laser_combo.move(x, y)
         x += self.laser_combo.width() + margin
         self.map_combo.move(x, y)
-
-
-
-
 
     def toggle_tf(self):
         self.render_tf = self.btn_tf.isChecked()
