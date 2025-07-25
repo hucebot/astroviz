@@ -784,7 +784,7 @@ class OrthogonalViewer(QMainWindow):
 
     def toggle_world(self):
         self.render_world = self.btn_world.isChecked()
-        for item, _, _, _ in self.world_items:
+        for item, _, _, _, _ in self.world_items:
             item.setVisible(self.render_world)
 
     def toggle_grid(self):
@@ -846,7 +846,7 @@ class OrthogonalViewer(QMainWindow):
                 self.y_axes.setData(pos=y)
                 self.z_axes.setData(pos=z)
 
-        for item, name, frame, T_local in self.world_items:
+        for item, name, frame, T_local, _ in self.world_items:
             try:
                 tf = self.tf_buffer.lookup_transform(self.root_frame, frame, rclpy.time.Time())
             except Exception:
