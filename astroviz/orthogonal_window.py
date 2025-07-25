@@ -23,6 +23,7 @@ setattr(np, 'float', float)
 import rclpy
 from rclpy.node import Node
 from rclpy.qos import QoSProfile, DurabilityPolicy
+from sensor_msgs.msg import LaserScan
 from tf2_msgs.msg import TFMessage
 from std_msgs.msg import String
 import tf2_ros
@@ -87,6 +88,7 @@ class OrthogonalViewer(QMainWindow):
         self.root_frame = root_frame
         self.render_tf = True
         self.render_urdf = True
+        self.selected_laser_topic = None
         self.setWindowTitle('Orthogonal Viewer')
         self.setWindowIcon(QIcon(os.path.join(ICONS_DIR, 'astroviz_icon.png')))
         self.resize(800, 600)
@@ -111,6 +113,9 @@ class OrthogonalViewer(QMainWindow):
         self.gl_view.setBackgroundColor((0.2, 0.2, 0.2, 1))
         layout.addWidget(self.gl_view)
 
+        self.laser_subscriber = None
+        self.laser_points_item = gl.GLScatterPlotItem(color=(1, 0, 0, 1), size=5)
+        self.gl_view.addItem(self.laser_points_item)
 
         self.btn_tf = QPushButton('TF', self.gl_view)
         self.btn_tf.setCheckable(True)
@@ -138,6 +143,12 @@ class OrthogonalViewer(QMainWindow):
         self.combo.setFixedWidth(180)
         self.combo.raise_()
         self.combo.currentTextChanged.connect(self.change_topic)
+
+        self.laser_combo = QComboBox(self.gl_view)
+        self.laser_combo.setFixedWidth(180)
+        self.laser_combo.raise_()
+        self.laser_combo.currentTextChanged.connect(self.change_laser_topic)
+
 
         self.loading_label = QLabel("Loading model...", self.gl_view)
         self.loading_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -251,24 +262,105 @@ class OrthogonalViewer(QMainWindow):
             self.gl_view.addItem(gl_item)
             self.world_items.append((gl_item, obj["name"], obj["frame"], T))
 
+    def change_laser_topic(self, topic: str):
+        if topic == '---':
+            self.selected_laser_topic = None
+            if self.laser_subscriber:
+                self.laser_subscriber.destroy()
+                self.laser_subscriber = None
+            self.laser_points_item.setData(pos=np.empty((0, 3)))
+            return
+
+        self.selected_laser_topic = topic
+        self.node.get_logger().info(f"Selected LaserScan topic: {topic}")
+
+        if self.laser_subscriber:
+            self.laser_subscriber.destroy()
+            self.laser_subscriber = None
+
+        self.laser_subscriber = self.node.create_subscription(
+            LaserScan,
+            topic,
+            self.laser_callback,
+            qos_profile=10
+        )
+
+    def laser_callback(self, msg: LaserScan):
+        try:
+            tf = self.tf_buffer.lookup_transform(
+                self.root_frame,
+                msg.header.frame_id,
+                rclpy.time.Time()
+            )
+        except Exception as e:
+            self.node.get_logger().warn(f"TF lookup failed: {e}")
+            return
+
+        t = tf.transform.translation
+        q = tf.transform.rotation
+
+        T = np.eye(4, dtype=np.float32)
+        T[:3, :3] = quaternion_to_matrix(q)
+        T[:3, 3] = [t.x, t.y, t.z]
+
+        ranges = np.array(msg.ranges, dtype=np.float32)
+        angles = msg.angle_min + np.arange(len(ranges)) * msg.angle_increment
+
+        xs = ranges * np.cos(angles)
+        ys = ranges * np.sin(angles)
+        zs = np.zeros_like(xs)
+        ones = np.ones_like(xs)
+
+        points = np.vstack((xs, ys, zs, ones)).T
+        points = points[np.isfinite(points).all(axis=1)]
+
+        points_world = (T @ points.T).T[:, :3]
+
+        self.laser_points_item.setData(pos=points_world)
+
+
+
+
     def _populate_frames(self):
         try:
             lines = self.tf_buffer.all_frames_as_string().splitlines()
             frames = [L.split()[1] for L in lines if L.startswith('Frame ')]
         except Exception:
             frames = []
-        current = self.combo.currentText()
+
+        current_frame = self.combo.currentText()
         items = ['---'] + frames
         if [self.combo.itemText(i) for i in range(self.combo.count())] != items:
             self.combo.blockSignals(True)
             self.combo.clear()
             self.combo.addItems(items)
-            if current in items:
-                self.combo.setCurrentText(current)
+            if current_frame in items:
+                self.combo.setCurrentText(current_frame)
             else:
                 self.combo.setCurrentIndex(0)
                 self.change_topic('---')
             self.combo.blockSignals(False)
+
+        laser_topics = []
+        try:
+            laser_topics = [t for t, ttype in self.node.get_topic_names_and_types()
+                            if 'sensor_msgs/msg/LaserScan' in ttype]
+        except Exception:
+            pass
+
+        current_laser = self.laser_combo.currentText()
+        laser_items = ['---'] + laser_topics
+        if [self.laser_combo.itemText(i) for i in range(self.laser_combo.count())] != laser_items:
+            self.laser_combo.blockSignals(True)
+            self.laser_combo.clear()
+            self.laser_combo.addItems(laser_items)
+            if current_laser in laser_items:
+                self.laser_combo.setCurrentText(current_laser)
+            else:
+                self.laser_combo.setCurrentIndex(0)
+                self.change_laser_topic('---')
+            self.laser_combo.blockSignals(False)
+
 
     def change_topic(self, frame_name: str):
         if frame_name == '---':
@@ -393,6 +485,9 @@ class OrthogonalViewer(QMainWindow):
         self.btn_grid.move(x, y)
         x += self.btn_grid.width() + margin
         self.combo.move(x, y)
+        x += self.combo.width() + margin
+        self.laser_combo.move(x, y)
+
 
 
 

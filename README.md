@@ -1,6 +1,6 @@
 # 🚀 AstroViz 🚀
 
-<img src="https://github.com/CDonosoK/astroviz/blob/main/images/AstroViz.png" alt="AstroViz Image" width="800" height="400">
+<img src="https://github.com/CDonosoK/astroviz/blob/main/images/AstroViz.png" alt="AstroViz Image" width="800" height="500">
 
 [![License](https://img.shields.io/badge/License-MIT--Clause-blue.svg)](https://opensource.org/licenses/MIT)
 [![ROS2 Version](https://img.shields.io/badge/ROS-Humble-green)](https://docs.ros.org/en/humble/index.html)
