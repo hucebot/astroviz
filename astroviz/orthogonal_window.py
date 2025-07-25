@@ -6,6 +6,7 @@ import math
 import fractions
 import tempfile
 import re
+import json
 
 import collections
 import collections.abc
@@ -63,7 +64,9 @@ else:
 os.makedirs(_CONFIG_DIR, exist_ok=True)
 
 CONFIG_PATH = os.path.join(_CONFIG_DIR, 'dashboard_config.json')
+MESHES_PATH = os.path.join(_CONFIG_DIR, 'world_display.json')
 ICONS_DIR  = os.path.join(_PKG_DIR, 'icons')
+MESHES_DIR = os.path.join(_PKG_DIR, 'meshes')
 
 
 
@@ -84,7 +87,7 @@ class OrthogonalViewer(QMainWindow):
         self.root_frame = root_frame
         self.render_tf = True
         self.render_urdf = True
-        self.setWindowTitle('Robot State Viewer')
+        self.setWindowTitle('Orthogonal Viewer')
         self.setWindowIcon(QIcon(os.path.join(ICONS_DIR, 'astroviz_icon.png')))
         self.resize(800, 600)
 
@@ -119,6 +122,17 @@ class OrthogonalViewer(QMainWindow):
         self.btn_urdf.setChecked(True)
         self.btn_urdf.setFixedWidth(80)
         self.btn_urdf.clicked.connect(self.toggle_urdf)
+        self.btn_world = QPushButton('WORLD', self.gl_view)
+        self.btn_world.setCheckable(True)
+        self.btn_world.setChecked(True)
+        self.btn_world.setFixedWidth(80)
+        self.btn_world.clicked.connect(self.toggle_world)
+        self.btn_grid = QPushButton('GRID', self.gl_view)
+        self.btn_grid.setCheckable(True)
+        self.btn_grid.setChecked(True)
+        self.btn_grid.setFixedWidth(80)
+        self.btn_grid.clicked.connect(self.toggle_grid)
+
 
         self.combo = QComboBox(self.gl_view)
         self.combo.setFixedWidth(180)
@@ -138,9 +152,10 @@ class OrthogonalViewer(QMainWindow):
 
         self._position_overlays()
 
-        grid = gl.GLGridItem()
-        grid.scale(0.1, 0.1, 0.1)
-        self.gl_view.addItem(grid)
+        self.grid_item = gl.GLGridItem()
+        self.grid_item.scale(0.1, 0.1, 0.1)
+        self.gl_view.addItem(self.grid_item)
+
         self.scatter = gl.GLScatterPlotItem()
         self.x_axes = gl.GLLinePlotItem(color=(1, 0, 0, 1), width=2, mode='lines')
         self.y_axes = gl.GLLinePlotItem(color=(0, 1, 0, 1), width=2, mode='lines')
@@ -158,10 +173,83 @@ class OrthogonalViewer(QMainWindow):
         self.mesh_items = []
         self.gl_view.installEventFilter(self)
 
+        self.world_items = []
+        self.render_world = True
+
         self.frame_timer = QTimer(self)
         self.frame_timer.timeout.connect(self._populate_frames)
         self.frame_timer.start(1000)
 
+        self.gl_view.setMouseTracking(True)
+        self._mouse_right_pressed = False
+        self._last_mouse_pos = None
+
+        self.load_world_objects()
+
+    def load_world_objects(self):
+        if not os.path.exists(MESHES_PATH):
+            self.node.get_logger().warn(f"No meshes file found at {MESHES_PATH}.")
+            return
+
+        with open(MESHES_PATH, 'r') as f:
+            try:
+                object_list = json.load(f)
+            except json.JSONDecodeError:
+                self.node.get_logger().error("Error parsing world_display.json")
+                return
+
+        for obj in object_list:
+            mesh_path = os.path.join(MESHES_DIR, obj['mesh'])
+            if not os.path.exists(mesh_path):
+                self.node.get_logger().warn(f"Mesh not found: {mesh_path}")
+                continue
+
+            try:
+                loaded = trimesh.load(mesh_path, process=False)
+
+                if isinstance(loaded, list):
+                    mesh = trimesh.util.concatenate(loaded)
+                elif hasattr(loaded, 'geometry'):
+                    mesh = trimesh.util.concatenate(loaded.geometry.values())
+                else:
+                    mesh = loaded
+
+            except Exception as e:
+                self.node.get_logger().error(f"Error loading mesh {mesh_path}: {str(e)}")
+                continue
+
+            scale = obj.get("scale", 1.0)
+
+            verts = mesh.vertices.view(np.ndarray) * scale
+            faces = mesh.faces.view(np.ndarray)
+            normals = mesh.vertex_normals.view(np.ndarray) if mesh.vertex_normals is not None else None
+
+            face_color = (0.7, 0.7, 0.7, 1.0)
+            gl_item = gl.GLMeshItem(
+                vertexes=verts,
+                faces=faces,
+                normals=normals,
+                smooth=True,
+                shader='shaded',
+                drawFaces=True,
+                drawEdges=False,
+                faceColor=face_color
+            )
+            gl_item.setGLOptions('opaque')
+
+            pos = np.array(obj["position"], dtype=np.float32)
+            q = obj["orientation"]
+            T = np.eye(4, dtype=np.float32)
+            T[:3, :3] = quaternion_to_matrix(type("Q", (), dict(x=q[0], y=q[1], z=q[2], w=q[3]))())
+            T[:3, 3] = pos
+
+            mat = QMatrix4x4()
+            for i in range(4):
+                mat.setRow(i, QVector4D(*T[i, :]))
+            gl_item.setTransform(mat)
+
+            self.gl_view.addItem(gl_item)
+            self.world_items.append((gl_item, obj["name"], obj["frame"], T))
 
     def _populate_frames(self):
         try:
@@ -182,18 +270,32 @@ class OrthogonalViewer(QMainWindow):
                 self.change_topic('---')
             self.combo.blockSignals(False)
 
-
     def change_topic(self, frame_name: str):
         if frame_name == '---':
             return
         self.root_frame = frame_name
 
-
     def eventFilter(self, source, event):
-        if source is self.gl_view and event.type() == event.Type.Resize:
-            self.loading_label.setGeometry(self.gl_view.rect())
+        if source is self.gl_view:
+            if event.type() == event.Type.Resize:
+                self.loading_label.setGeometry(self.gl_view.rect())
+            elif event.type() == event.Type.MouseButtonPress and event.button() == Qt.MouseButton.RightButton:
+                self._mouse_right_pressed = True
+                self._last_mouse_pos = event.position().toPoint()
+                return True
+            elif event.type() == event.Type.MouseButtonRelease and event.button() == Qt.MouseButton.RightButton:
+                self._mouse_right_pressed = False
+                self._last_mouse_pos = None
+                return True
+            elif event.type() == event.Type.MouseMove and self._mouse_right_pressed and self._last_mouse_pos:
+                delta = event.position().toPoint() - self._last_mouse_pos
+                dz = -0.01 * delta.y()
+                center = self.gl_view.opts['center']
+                new_center = QVector4D(center.x(), center.y(), center.z() + dz, 1.0)
+                self.gl_view.opts['center'] = new_center.toVector3D()
+                self._last_mouse_pos = event.position().toPoint()
+                return True
         return super().eventFilter(source, event)
-
 
     def fix_urdf_path(self, urdf_string):
             def replace_package(match):
@@ -286,7 +388,12 @@ class OrthogonalViewer(QMainWindow):
         x += self.btn_tf.width() + margin
         self.btn_urdf.move(x, y)
         x += self.btn_urdf.width() + margin
+        self.btn_world.move(x, y)
+        x += self.btn_world.width() + margin
+        self.btn_grid.move(x, y)
+        x += self.btn_grid.width() + margin
         self.combo.move(x, y)
+
 
 
     def toggle_tf(self):
@@ -302,6 +409,14 @@ class OrthogonalViewer(QMainWindow):
         for item, _, _ in self.mesh_items:
             item.setVisible(self.render_urdf)
 
+    def toggle_world(self):
+        self.render_world = self.btn_world.isChecked()
+        for item, _, _, _ in self.world_items:
+            item.setVisible(self.render_world)
+
+    def toggle_grid(self):
+        self.grid_item.setVisible(self.btn_grid.isChecked())
+
     def _tf_callback(self, msg: TFMessage):
         if msg.transforms:
             self.update_signal.emit()
@@ -311,58 +426,67 @@ class OrthogonalViewer(QMainWindow):
         lines = self.tf_buffer.all_frames_as_string().splitlines()
         frames = [L.split()[1] for L in lines if L.startswith('Frame ')]
 
-        for item, link_name, T_lv in self.mesh_items:
-            if not self.render_urdf:
-                break
+        if self.render_urdf:
+            for item, link_name, T_lv in self.mesh_items:
+                try:
+                    tf = self.tf_buffer.lookup_transform(self.root_frame, link_name, rclpy.time.Time())
+                except Exception:
+                    continue
+                t, q = tf.transform.translation, tf.transform.rotation
+                T_tf = np.eye(4, dtype=np.float32)
+                T_tf[:3, :3] = quaternion_to_matrix(q)
+                T_tf[:3, 3] = [t.x, t.y, t.z]
+                T = T_tf @ T_lv
+                mat = QMatrix4x4()
+                for i in range(4):
+                    mat.setRow(i, QVector4D(*T[i, :]))
+                item.setTransform(mat)
+
+        if self.render_tf:
+            mats = []
+            for f in frames:
+                if f == self.root_frame:
+                    continue
+                try:
+                    tf = self.tf_buffer.lookup_transform(self.root_frame, f, rclpy.time.Time())
+                except Exception:
+                    continue
+                t, q = tf.transform.translation, tf.transform.rotation
+                M = np.eye(4, dtype=np.float32)
+                M[:3, :3] = quaternion_to_matrix(q)
+                M[:3, 3] = [t.x, t.y, t.z]
+                mats.append(M)
+            if mats:
+                pts = np.vstack([M[:3, 3] for M in mats])
+                self.scatter.setData(pos=pts, size=5, color=(1, 1, 0, 0.8))
+
+                N, L = len(mats), 0.1
+                x = np.zeros((2 * N, 3), dtype=np.float32)
+                y = np.zeros_like(x)
+                z = np.zeros_like(x)
+                for i, M in enumerate(mats):
+                    o, R = M[:3, 3], M[:3, :3]
+                    x[2*i] = o;        x[2*i+1] = o + R @ np.array([L, 0, 0], dtype=np.float32)
+                    y[2*i] = o;        y[2*i+1] = o + R @ np.array([0, L, 0], dtype=np.float32)
+                    z[2*i] = o;        z[2*i+1] = o + R @ np.array([0, 0, L], dtype=np.float32)
+                self.x_axes.setData(pos=x)
+                self.y_axes.setData(pos=y)
+                self.z_axes.setData(pos=z)
+
+        for item, name, frame, T_local in self.world_items:
             try:
-                tf = self.tf_buffer.lookup_transform(self.root_frame, link_name, rclpy.time.Time())
+                tf = self.tf_buffer.lookup_transform(self.root_frame, frame, rclpy.time.Time())
             except Exception:
                 continue
             t, q = tf.transform.translation, tf.transform.rotation
             T_tf = np.eye(4, dtype=np.float32)
             T_tf[:3, :3] = quaternion_to_matrix(q)
             T_tf[:3, 3] = [t.x, t.y, t.z]
-            T = T_tf @ T_lv
+            T = T_tf @ T_local
             mat = QMatrix4x4()
             for i in range(4):
                 mat.setRow(i, QVector4D(*T[i, :]))
             item.setTransform(mat)
-
-        if not self.render_tf:
-            return
-
-        mats = []
-        for f in frames:
-            if f == self.root_frame:
-                continue
-            try:
-                tf = self.tf_buffer.lookup_transform(self.root_frame, f, rclpy.time.Time())
-            except Exception:
-                continue
-            t, q = tf.transform.translation, tf.transform.rotation
-            M = np.eye(4, dtype=np.float32)
-            M[:3, :3] = quaternion_to_matrix(q)
-            M[:3, 3] = [t.x, t.y, t.z]
-            mats.append(M)
-        if not mats:
-            return
-
-        pts = np.vstack([M[:3, 3] for M in mats])
-        self.scatter.setData(pos=pts, size=5, color=(1, 1, 0, 0.8))
-
-        N, L = len(mats), 0.1
-        x = np.zeros((2 * N, 3), dtype=np.float32)
-        y = np.zeros_like(x)
-        z = np.zeros_like(x)
-        for i, M in enumerate(mats):
-            o, R = M[:3, 3], M[:3, :3]
-            x[2*i] = o;        x[2*i+1] = o + R @ np.array([L, 0, 0], dtype=np.float32)
-            y[2*i] = o;        y[2*i+1] = o + R @ np.array([0, L, 0], dtype=np.float32)
-            z[2*i] = o;        z[2*i+1] = o + R @ np.array([0, 0, L], dtype=np.float32)
-        self.x_axes.setData(pos=x)
-        self.y_axes.setData(pos=y)
-        self.z_axes.setData(pos=z)
-
 
 def main():
     rclpy.init()

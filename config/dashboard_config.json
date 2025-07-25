@@ -1,8 +1,8 @@
 {
   "views": [
+    "Orthogonal",
     "Camera",
     "Motor State",
-    "Camera",
     "System Health",
     "IMU"
   ],
