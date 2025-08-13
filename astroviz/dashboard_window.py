@@ -98,7 +98,7 @@ class Panel(QWidget):
 class TeleoperationDashboard(QMainWindow):
     def __init__(self, node: Node):
         super().__init__()
-        self.setWindowFlags(Qt.WindowType.FramelessWindowHint)
+        # self.setWindowFlags(Qt.WindowType.FramelessWindowHint)
         self.node = node
         self.actual_style = 'dark'
         self.setWindowTitle("Teleoperation Dashboard")
@@ -110,7 +110,7 @@ class TeleoperationDashboard(QMainWindow):
             self.setGeometry(screen.geometry())
         else:
             self.setGeometry(100,100,1920,1080)
-        self.setMinimumSize(1200,800)
+        # self.setMinimumSize(1200,800)
 
         self.icon_sun  = QIcon(QPixmap(os.path.join(ICONS_DIR, 'light_style.png')))
         self.icon_moon = QIcon(QPixmap(os.path.join(ICONS_DIR, 'dark_style.png')))
