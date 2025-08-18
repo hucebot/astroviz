@@ -47,7 +47,7 @@ from ament_index_python.packages import get_package_share_directory
 
 
 from astroviz.utils.window_style import DarkStyle
-from astroviz.utils._find import _find_pkg, _find_src_config
+from astroviz.common._find import _find_pkg, _find_src_config
 
 _src_config = _find_src_config()
 if _src_config:
@@ -84,7 +84,7 @@ def quaternion_to_matrix(q):
 class OrthogonalViewer(QMainWindow):
     update_signal = pyqtSignal()
 
-    def __init__(self, node: Node, root_frame: str = 'pelvis'):
+    def __init__(self, node: Node, root_frame: str = 'odom'):
         super().__init__()
         self.node = node
         self.root_frame = root_frame

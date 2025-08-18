@@ -21,7 +21,7 @@ import pyqtgraph as pg
 
 from astroviz.utils.window_style import DarkStyle, LightStyle
 
-from astroviz.utils._find import _find_pkg, _find_src_config
+from astroviz.common._find import _find_pkg, _find_src_config
 
 _src_config = _find_src_config()
 if _src_config:

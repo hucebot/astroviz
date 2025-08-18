@@ -16,7 +16,7 @@ from sensor_msgs.msg import Imu
 
 from ament_index_python.packages import get_package_share_directory
 from astroviz.utils.window_style import DarkStyle
-from astroviz.utils._find import _find_pkg, _find_src_config
+from astroviz.common._find import _find_pkg, _find_src_config
 
 _src_config = _find_src_config()
 if _src_config:

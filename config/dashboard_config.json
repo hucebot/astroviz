@@ -1,6 +1,6 @@
 {
   "views": [
-    "LiDAR",
+    "Orthogonal",
     "Camera",
     "Motor State",
     "System Health",
@@ -9,17 +9,17 @@
   "actual_style": "dark",
   "splitter_sizes": {
     "top": [
-      1206,
-      644
+      1249,
+      667
     ],
     "bottom": [
-      584,
-      811,
-      451
+      605,
+      840,
+      467
     ],
     "main": [
-      627,
-      458
+      576,
+      421
     ]
   }
 }

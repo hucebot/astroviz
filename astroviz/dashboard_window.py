@@ -23,7 +23,7 @@ from astroviz.teleoperation_window import TeleoperationViewer
 
 from astroviz.utils.window_style import DarkStyle, LightStyle
 from astroviz.utils.windows_implemented import VIEW_TYPES
-from astroviz.utils._find import _find_pkg, _find_src_config
+from astroviz.common._find import _find_pkg, _find_src_config
 from termcolor import colored
 
 

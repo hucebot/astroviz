@@ -19,7 +19,7 @@ if [ $isRunning -eq 0 ]; then
         -it \
         -v /dev:/dev \
         -v `pwd`/../:/ros2_ws/src/astroviz \
-        -v `pwd`/../../g1_description:/ros2_ws/src/g1_description \
+        -v `pwd`/../../g1pilot:/ros2_ws/src/g1pilot \
         -v /tmp/.X11-unix:/tmp/.X11-unix \
         -v /run/dbus:/run/dbus \
         -w /ros2_ws \
