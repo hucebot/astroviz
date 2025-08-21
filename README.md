@@ -112,7 +112,7 @@ Replace `<node_name>` with the name of the node you wish to run, such as `gps_ma
 
 Or if you prefer to run the dashboard viewer, which integrates all functionalities:
 ```bash
-ros2 run astroviz dashboard_viewer
+ros2 launch astroviz dashboard_launcher.launch.py
 ```
 
 ## Maintainer

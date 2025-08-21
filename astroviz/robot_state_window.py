@@ -69,7 +69,7 @@ def quaternion_to_matrix(q):
         [2*(x*z - y*w),   2*(y*z + x*w),   1-2*(x*x+y*y)]
     ], dtype=np.float32)
 
-class RobotViewer(QMainWindow):
+class RobotStateViewer(QMainWindow):
     update_signal = pyqtSignal()
 
     def __init__(self, node: Node, root_frame: str = 'odom'):
@@ -419,12 +419,12 @@ class RobotViewer(QMainWindow):
 
 def main():
     rclpy.init()
-    node = rclpy.create_node('RobotViewer')
+    node = rclpy.create_node('RobotStateViewer')
     threading.Thread(target=rclpy.spin, args=(node,), daemon=True).start()
 
     app = QApplication(sys.argv)
     DarkStyle(app)
-    viewer = RobotViewer(node)
+    viewer = RobotStateViewer(node)
     viewer.show()
     app.exec()
 
