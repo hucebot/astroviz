@@ -8,6 +8,7 @@ import tempfile
 import re
 import json
 import cv2
+import time
 
 import collections
 import collections.abc
@@ -17,7 +18,6 @@ collections.Iterable = collections.abc.Iterable
 fractions.gcd = math.gcd
 
 import numpy as np
-
 setattr(np, 'int', int)
 setattr(np, 'float', float)
 
@@ -30,6 +30,9 @@ from tf2_msgs.msg import TFMessage
 from std_msgs.msg import String
 import tf2_ros
 from ament_index_python.packages import get_package_share_directory
+
+import pyqtgraph as pg
+import pyqtgraph.opengl as gl
 from pyqtgraph.opengl import GLScatterPlotItem, GLMeshItem, GLLinePlotItem
 
 from urdfpy import URDF
@@ -39,15 +42,13 @@ from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget,
     QVBoxLayout, QPushButton, QLabel, QComboBox
 )
-from PyQt6.QtCore    import pyqtSignal, Qt, QTimer, QPoint
+from PyQt6.QtCore    import pyqtSignal, Qt, QTimer, QPoint, QTime
 from PyQt6.QtGui     import QMatrix4x4, QVector4D, QPalette, QColor, QFont, QIcon
-import pyqtgraph.opengl as gl
 
 from ament_index_python.packages import get_package_share_directory
 
-
 from astroviz.utils.window_style import DarkStyle
-from astroviz.utils._find import _find_pkg, _find_src_config
+from astroviz.common._find import _find_pkg, _find_src_config
 
 _src_config = _find_src_config()
 if _src_config:
@@ -56,7 +57,6 @@ else:
     _CONFIG_DIR = os.path.join(
         get_package_share_directory('astroviz'), 'config'
     )
-
 
 _pkg = _find_pkg()
 if _pkg:
@@ -72,7 +72,6 @@ ICONS_DIR  = os.path.join(_PKG_DIR, 'icons')
 MESHES_DIR = os.path.join(_PKG_DIR, 'meshes')
 
 
-
 def quaternion_to_matrix(q):
     w, x, y, z = q.w, q.x, q.y, q.z
     return np.array([
@@ -81,10 +80,11 @@ def quaternion_to_matrix(q):
         [2*(x*z - y*w),   2*(y*z + x*w),   1-2*(x*x+y*y)]
     ], dtype=np.float32)
 
+
 class OrthogonalViewer(QMainWindow):
     update_signal = pyqtSignal()
 
-    def __init__(self, node: Node, root_frame: str = 'pelvis'):
+    def __init__(self, node: Node, root_frame: str = 'odom'):
         super().__init__()
         self.node = node
         self.root_frame = root_frame
@@ -99,14 +99,26 @@ class OrthogonalViewer(QMainWindow):
         self._press_pos = None
         self.world_objects_by_name = {}
 
+        self._cached_frames = []
+        self._last_link_tf = {}
+        self._axes_last_update_ms = 0
+        self._axes_update_interval_ms = 100
+        # ----------------------
+
         self.setWindowTitle('Orthogonal Viewer')
         self.setWindowIcon(QIcon(os.path.join(ICONS_DIR, 'astroviz_icon.png')))
         self.resize(800, 600)
 
+        pg.setConfigOptions(antialias=False)
+        try:
+            gl.setConfigOptions(antialias=False)
+        except Exception:
+            pass
+
         self.node.create_subscription(
-            String, 
-            '/robot_description', 
-            self.robot_description_callback, 
+            String,
+            '/robot_description',
+            self.robot_description_callback,
             QoSProfile(depth=1, durability=DurabilityPolicy.TRANSIENT_LOCAL)
         )
 
@@ -120,7 +132,7 @@ class OrthogonalViewer(QMainWindow):
 
         self.gl_view = gl.GLViewWidget()
         self.gl_view.opts['distance'] = 1.0
-        self.gl_view.setBackgroundColor((0.2, 0.2, 0.2, 1))
+        self.gl_view.setBackgroundColor('#090c28')
         layout.addWidget(self.gl_view)
 
         self.laser_subscriber = None
@@ -132,22 +144,24 @@ class OrthogonalViewer(QMainWindow):
         self.btn_tf.setChecked(True)
         self.btn_tf.setFixedWidth(80)
         self.btn_tf.clicked.connect(self.toggle_tf)
+
         self.btn_urdf = QPushButton('URDF', self.gl_view)
         self.btn_urdf.setCheckable(True)
         self.btn_urdf.setChecked(True)
         self.btn_urdf.setFixedWidth(80)
         self.btn_urdf.clicked.connect(self.toggle_urdf)
+
         self.btn_world = QPushButton('WORLD', self.gl_view)
         self.btn_world.setCheckable(True)
         self.btn_world.setChecked(True)
         self.btn_world.setFixedWidth(80)
         self.btn_world.clicked.connect(self.toggle_world)
+
         self.btn_grid = QPushButton('GRID', self.gl_view)
         self.btn_grid.setCheckable(True)
         self.btn_grid.setChecked(True)
         self.btn_grid.setFixedWidth(80)
         self.btn_grid.clicked.connect(self.toggle_grid)
-
 
         self.combo = QComboBox(self.gl_view)
         self.combo.setFixedWidth(180)
@@ -163,8 +177,6 @@ class OrthogonalViewer(QMainWindow):
         self.map_combo.setFixedWidth(180)
         self.map_combo.raise_()
         self.map_combo.currentTextChanged.connect(self.change_map_topic)
-
-
 
         self.loading_label = QLabel("Loading model...", self.gl_view)
         self.loading_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -207,13 +219,18 @@ class OrthogonalViewer(QMainWindow):
         self.frame_timer.timeout.connect(self._populate_frames)
         self.frame_timer.start(1000)
 
+        self.render_timer = QTimer(self)
+        self.render_timer.setTimerType(Qt.TimerType.PreciseTimer)
+        self.render_timer.timeout.connect(self._update_view)
+        self.render_timer.start(16)
+
         self.gl_view.setMouseTracking(True)
         self._mouse_right_pressed = False
         self._last_mouse_pos = None
 
         self.load_world_objects()
 
-
+    # ===================== MAP =====================
     def map_callback(self, msg):
         width = msg.info.width
         height = msg.info.height
@@ -227,6 +244,7 @@ class OrthogonalViewer(QMainWindow):
         color_map[data == -1] = [0.5, 0.5, 0.5, 0.3]
         color_map[data == 0]  = [1.0, 1.0, 1.0, 0.2]
         color_map[data > 50]  = [0.0, 0.0, 0.0, 0.6]
+        color_map[..., 3] = 0.5
 
         xs = np.linspace(0, width * resolution, width)
         ys = np.linspace(0, height * resolution, height)
@@ -254,7 +272,7 @@ class OrthogonalViewer(QMainWindow):
             drawEdges=False,
             smooth=False
         )
-        self.map_item.setGLOptions('opaque')
+        self.map_item.setGLOptions('translucent')
         self.gl_view.addItem(self.map_item)
 
         T_map_local = np.eye(4, dtype=np.float32)
@@ -278,7 +296,7 @@ class OrthogonalViewer(QMainWindow):
             mat.setRow(i, QVector4D(*T_global[i, :]))
         self.map_item.setTransform(mat)
 
-
+    # ===================== WORLD =====================
     def load_world_objects(self):
         if not os.path.exists(MESHES_PATH):
             self.node.get_logger().warn(f"No meshes file found at {MESHES_PATH}.")
@@ -334,7 +352,7 @@ class OrthogonalViewer(QMainWindow):
                 faceColor=face_color
             )
             gl_item.setGLOptions('opaque')
-            gl_item._original_vertices = verts 
+            gl_item._original_vertices = verts
 
             pos = np.array(obj["position"], dtype=np.float32)
             q = obj["orientation"]
@@ -350,7 +368,6 @@ class OrthogonalViewer(QMainWindow):
             self.gl_view.addItem(gl_item)
             self.world_items.append((gl_item, obj["name"], obj["frame"], T, verts))
             self.world_objects_by_name[obj["name"]] = (gl_item, verts)
-
 
     def highlight_object(self, name):
         if hasattr(self, 'highlight_box'):
@@ -400,7 +417,7 @@ class OrthogonalViewer(QMainWindow):
         )
         self.gl_view.addItem(self.highlight_box)
 
-
+    # ===================== LASER =====================
     def change_laser_topic(self, topic: str):
         if topic == 'Laser Topic':
             self.selected_laser_topic = None
@@ -456,15 +473,15 @@ class OrthogonalViewer(QMainWindow):
 
         self.laser_points_item.setData(pos=points_world)
 
-
-
-
+    # ===================== FRAMES & RENDERING =====================
     def _populate_frames(self):
         try:
             lines = self.tf_buffer.all_frames_as_string().splitlines()
             frames = [L.split()[1] for L in lines if L.startswith('Frame ')]
         except Exception:
             frames = []
+
+        self._cached_frames = frames[:]
 
         current_frame = self.combo.currentText()
         items = ['Fixed Frame'] + frames
@@ -502,7 +519,7 @@ class OrthogonalViewer(QMainWindow):
         map_topics = []
         try:
             map_topics = [t for t, ttype in self.node.get_topic_names_and_types()
-                        if 'nav_msgs/msg/OccupancyGrid' in ttype]
+                          if 'nav_msgs/msg/OccupancyGrid' in ttype]
         except Exception:
             pass
 
@@ -518,7 +535,6 @@ class OrthogonalViewer(QMainWindow):
                 self.map_combo.setCurrentIndex(0)
                 self.change_map_topic('Map')
             self.map_combo.blockSignals(False)
-
 
     def change_map_topic(self, topic: str):
         if topic == 'Map':
@@ -538,16 +554,13 @@ class OrthogonalViewer(QMainWindow):
             qos_profile=10
         )
 
+    # ===================== SELECTION =====================
     def ray_intersect_aabb(self, ray_origin, ray_dir, bbox_min, bbox_max):
-
         inv_dir = 1.0 / np.where(np.abs(ray_dir) < 1e-6, 1e-6, ray_dir)
-
         t0s = (bbox_min - ray_origin) * inv_dir
         t1s = (bbox_max - ray_origin) * inv_dir
-
         t_near = np.max(np.minimum(t0s, t1s), axis=0)
         t_far  = np.min(np.maximum(t0s, t1s), axis=0)
-
         if t_far < 0 or t_near > t_far:
             return None
         return t_near
@@ -615,8 +628,7 @@ class OrthogonalViewer(QMainWindow):
                 del self.highlight_box
             self.selected_object_name = None
 
-
-
+    # ===================== UI/MISC =====================
     def change_fixed_frame(self, frame_name: str):
         if frame_name == 'Fixed Frame':
             return
@@ -645,7 +657,7 @@ class OrthogonalViewer(QMainWindow):
                 new_center = QVector4D(center.x(), center.y(), center.z() + dz, 1.0)
                 self.gl_view.opts['center'] = new_center.toVector3D()
                 self._last_mouse_pos = event.position().toPoint()
-                self.gl_view.update() 
+                self.gl_view.update()
                 return True
 
             if event.type() == event.Type.MouseButtonPress and event.button() == Qt.MouseButton.LeftButton:
@@ -668,14 +680,13 @@ class OrthogonalViewer(QMainWindow):
 
         return super().eventFilter(source, event)
 
-
     def fix_urdf_path(self, urdf_string):
-            def replace_package(match):
-                package_path = get_package_share_directory(match.group(1))
-                return package_path + '/' + match.group(2)
-            pattern = r'package://([^/]+)/(.+?)(?=["\'])'
-            return re.sub(pattern, replace_package, urdf_string)
-    
+        def replace_package(match):
+            package_path = get_package_share_directory(match.group(1))
+            return package_path + '/' + match.group(2)
+        pattern = r'package://([^/]+)/(.+?)(?=["\'])'
+        return re.sub(pattern, replace_package, urdf_string)
+
     def resizeEvent(self, event):
         super().resizeEvent(event)
         self._position_overlays()
@@ -790,14 +801,13 @@ class OrthogonalViewer(QMainWindow):
     def toggle_grid(self):
         self.grid_item.setVisible(self.btn_grid.isChecked())
 
+    # ===================== TF & RENDER LOOP =====================
+
     def _tf_callback(self, msg: TFMessage):
-        if msg.transforms:
-            self.update_signal.emit()
+        pass
 
     def _update_view(self):
-        frames = []
-        lines = self.tf_buffer.all_frames_as_string().splitlines()
-        frames = [L.split()[1] for L in lines if L.startswith('Frame ')]
+        frames = self._cached_frames
 
         if self.render_urdf:
             for item, link_name, T_lv in self.mesh_items:
@@ -810,41 +820,53 @@ class OrthogonalViewer(QMainWindow):
                 T_tf[:3, :3] = quaternion_to_matrix(q)
                 T_tf[:3, 3] = [t.x, t.y, t.z]
                 T = T_tf @ T_lv
+
+                # Early-out si no cambió lo suficiente
+                last = self._last_link_tf.get(link_name)
+                if last is not None and np.allclose(T, last, atol=1e-4, rtol=0.0):
+                    continue
+                self._last_link_tf[link_name] = T
+
                 mat = QMatrix4x4()
                 for i in range(4):
                     mat.setRow(i, QVector4D(*T[i, :]))
                 item.setTransform(mat)
 
         if self.render_tf:
-            mats = []
-            for f in frames:
-                if f == self.root_frame:
-                    continue
-                try:
-                    tf = self.tf_buffer.lookup_transform(self.root_frame, f, rclpy.time.Time())
-                except Exception:
-                    continue
-                t, q = tf.transform.translation, tf.transform.rotation
-                M = np.eye(4, dtype=np.float32)
-                M[:3, :3] = quaternion_to_matrix(q)
-                M[:3, 3] = [t.x, t.y, t.z]
-                mats.append(M)
-            if mats:
-                pts = np.vstack([M[:3, 3] for M in mats])
-                self.scatter.setData(pos=pts, size=5, color=(1, 1, 0, 0.8))
+            now_ms = QTime.currentTime().msecsSinceStartOfDay()
+            if (now_ms - self._axes_last_update_ms) >= self._axes_update_interval_ms:
+                mats = []
+                for f in frames:
+                    if f == self.root_frame:
+                        continue
+                    try:
+                        tf = self.tf_buffer.lookup_transform(self.root_frame, f, rclpy.time.Time())
+                    except Exception:
+                        continue
+                    t, q = tf.transform.translation, tf.transform.rotation
+                    M = np.eye(4, dtype=np.float32)
+                    M[:3, :3] = quaternion_to_matrix(q)
+                    M[:3, 3] = [t.x, t.y, t.z]
+                    mats.append(M)
 
-                N, L = len(mats), 0.1
-                x = np.zeros((2 * N, 3), dtype=np.float32)
-                y = np.zeros_like(x)
-                z = np.zeros_like(x)
-                for i, M in enumerate(mats):
-                    o, R = M[:3, 3], M[:3, :3]
-                    x[2*i] = o;        x[2*i+1] = o + R @ np.array([L, 0, 0], dtype=np.float32)
-                    y[2*i] = o;        y[2*i+1] = o + R @ np.array([0, L, 0], dtype=np.float32)
-                    z[2*i] = o;        z[2*i+1] = o + R @ np.array([0, 0, L], dtype=np.float32)
-                self.x_axes.setData(pos=x)
-                self.y_axes.setData(pos=y)
-                self.z_axes.setData(pos=z)
+                if mats:
+                    pts = np.vstack([M[:3, 3] for M in mats])
+                    self.scatter.setData(pos=pts, size=5, color=(1, 1, 0, 0.8))
+
+                    N, L = len(mats), 0.1
+                    x = np.zeros((2 * N, 3), dtype=np.float32)
+                    y = np.zeros_like(x)
+                    z = np.zeros_like(x)
+                    for i, M in enumerate(mats):
+                        o, R = M[:3, 3], M[:3, :3]
+                        x[2*i]   = o; x[2*i+1] = o + R @ np.array([L, 0, 0], dtype=np.float32)
+                        y[2*i]   = o; y[2*i+1] = o + R @ np.array([0, L, 0], dtype=np.float32)
+                        z[2*i]   = o; z[2*i+1] = o + R @ np.array([0, 0, L], dtype=np.float32)
+                    self.x_axes.setData(pos=x)
+                    self.y_axes.setData(pos=y)
+                    self.z_axes.setData(pos=z)
+
+                self._axes_last_update_ms = now_ms
 
         for item, name, frame, T_local, _ in self.world_items:
             try:
@@ -861,6 +883,7 @@ class OrthogonalViewer(QMainWindow):
                 mat.setRow(i, QVector4D(*T[i, :]))
             item.setTransform(mat)
 
+
 def main():
     rclpy.init()
     node = rclpy.create_node('tf_viewer')
@@ -874,6 +897,7 @@ def main():
 
     node.destroy_node()
     rclpy.shutdown()
+
 
 if __name__=='__main__':
     main()

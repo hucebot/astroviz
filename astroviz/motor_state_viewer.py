@@ -16,10 +16,10 @@ from PyQt6.QtGui import QColor
 from astroviz.utils.window_style import DarkStyle
 
 # Threshold definitions
-TEMP_NORMAL_MAX = 50.0
+TEMP_NORMAL_MAX = 45.0
 TEMP_ANOMALOUS_MAX = 65.0
-VOLTAGE_NORMAL_MIN = 48.0
-VOLTAGE_ANOMALOUS_MIN = 6.0
+VOLTAGE_NORMAL_MIN = 50.0
+VOLTAGE_ANOMALOUS_MIN = 48.0
 
 ALPHA = 100 
 COLOR_NORMAL = QColor(144, 238, 144, ALPHA)
@@ -45,7 +45,7 @@ class MotorTableViewer(QWidget):
         main_layout.addLayout(header_layout)
 
         self.table = QTableWidget()
-        cols = ['Status', 'Name', 'Temperature (°C)', 'Voltage (V)']
+        cols = ['Status', 'Name', 'Temperature (°C)', 'Voltage (V)', 'Position (rad)']
         self.table.setColumnCount(len(cols))
         header = self.table.horizontalHeader()
         self.table.setHorizontalHeaderLabels(cols) 
@@ -53,6 +53,7 @@ class MotorTableViewer(QWidget):
         header.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
         header.setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
         header.setSectionResizeMode(3, QHeaderView.ResizeMode.Stretch)
+        header.setSectionResizeMode(4, QHeaderView.ResizeMode.Stretch)
 
         self.table.setColumnWidth(0, 60)
         main_layout.addWidget(self.table)
@@ -81,13 +82,12 @@ class MotorTableViewer(QWidget):
             self.topic_combo.blockSignals(False)
 
     def _change_topic(self, topic: str):
-        # Unsubscribe old
         if self.subscriber:
             try: self.node.destroy_subscription(self.subscriber)
             except: pass
             self.subscriber = None
             self.latest_msg = None
-        # Subscribe new
+
         if topic != '---':
             self.subscriber = self.node.create_subscription(
                 MotorStateList, topic, self._on_msg, 10
@@ -125,6 +125,7 @@ class MotorTableViewer(QWidget):
             self._set_cell(row, 1, motor.name, bold=True)
             self._set_cell(row, 2, f"{motor.temperature:.2f}")
             self._set_cell(row, 3, f"{motor.voltage:.2f}")
+            self._set_cell(row, 4, f"{motor.position:.2f}")
 
 
     def _set_cell(self, row: int, col: int, text: str, bold: bool=False):

@@ -23,7 +23,7 @@ from astroviz.teleoperation_window import TeleoperationViewer
 
 from astroviz.utils.window_style import DarkStyle, LightStyle
 from astroviz.utils.windows_implemented import VIEW_TYPES
-from astroviz.utils._find import _find_pkg, _find_src_config
+from astroviz.common._find import _find_pkg, _find_src_config
 from termcolor import colored
 
 
@@ -98,7 +98,7 @@ class Panel(QWidget):
 class TeleoperationDashboard(QMainWindow):
     def __init__(self, node: Node):
         super().__init__()
-        self.setWindowFlags(Qt.WindowType.FramelessWindowHint)
+        # self.setWindowFlags(Qt.WindowType.FramelessWindowHint)
         self.node = node
         self.actual_style = 'dark'
         self.setWindowTitle("Teleoperation Dashboard")
@@ -110,7 +110,7 @@ class TeleoperationDashboard(QMainWindow):
             self.setGeometry(screen.geometry())
         else:
             self.setGeometry(100,100,1920,1080)
-        self.setMinimumSize(1200,800)
+        # self.setMinimumSize(1200,800)
 
         self.icon_sun  = QIcon(QPixmap(os.path.join(ICONS_DIR, 'light_style.png')))
         self.icon_moon = QIcon(QPixmap(os.path.join(ICONS_DIR, 'dark_style.png')))

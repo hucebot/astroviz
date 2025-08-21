@@ -22,7 +22,7 @@ from PyQt6.QtCore import Qt, QTimer, QUrl
 from PyQt6.QtWebEngineWidgets import QWebEngineView
 
 from astroviz.utils.window_style import DarkStyle
-from astroviz.utils._find import _find_pkg
+from astroviz.common._find import _find_pkg
 
 from ament_index_python.packages import get_package_share_directory
 

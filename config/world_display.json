@@ -3,7 +3,7 @@
     "name": "fridge",
     "mesh": "fridge/meshes/Fridge.obj",
     "scale": 1.00,
-    "frame": "left_foot_upper_right",
+    "frame": "odom",
     "position": [1.2, 0.5, 0.0],
     "orientation": [0.0, 0.0, -0.7071, 0.7071]
   },
@@ -11,7 +11,7 @@
     "name": "table",
     "mesh": "table/meshes/Table.dae",
     "scale": 0.10,
-    "frame": "left_foot_upper_right",
+    "frame": "odom",
     "position": [1.2, -0.5, 0.0],
     "orientation": [0.0, 0.0, -0.7071, 0.7071]
   },
@@ -19,7 +19,7 @@
     "name": "kitchen_sink",
     "mesh": "kitchen_sink/meshes/kitchen_sink.obj",
     "scale": 1.00,
-    "frame": "left_foot_upper_right",
+    "frame": "odom",
     "position": [1.2, -1.5, 0.0],
     "orientation": [0.0, 0.0, -1.0, 0.0]
   }
