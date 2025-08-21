@@ -33,6 +33,7 @@ setup(
             'robot_state_viewer = astroviz.robot_state_window:main',
             'motor_state_viewer = astroviz.motor_state_viewer:main',
             'dummy_map_publisher = astroviz.fake_map:main',
+            'moderngl_viewer = astroviz.moderngl_window:main'
         ],
     },
 )
