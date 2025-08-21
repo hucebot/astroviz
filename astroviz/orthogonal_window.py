@@ -473,7 +473,7 @@ class OrthogonalViewer(QMainWindow):
 
         self.laser_points_item.setData(pos=points_world)
 
-    # ===================== FRAMES AND TOPICS =====================
+    # ===================== FRAMES & RENDERING =====================
     def _populate_frames(self):
         try:
             lines = self.tf_buffer.all_frames_as_string().splitlines()
