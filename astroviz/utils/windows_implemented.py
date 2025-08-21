@@ -18,5 +18,6 @@ VIEW_TYPES = {
     'System Health': GraphViewer,
     'GridMap': GridMapViewer,
     'Orthogonal': OrthogonalViewer,
-    'Motor State': MotorTableViewer
+    'Motor State': MotorTableViewer,
+    'Robot State': RobotStateViewer
 }
