@@ -362,7 +362,6 @@ class OrthogonalViewer(QMainWindow):
 
     # ===================== PATH =====================
     def path_callback(self, msg: Path):
-        # Ignora mensajes “rezagados” después de desuscribirte
         if not getattr(self, 'selected_path_topic', None):
             return
 
