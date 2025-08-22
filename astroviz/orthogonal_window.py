@@ -540,26 +540,29 @@ class OrthogonalViewer(QMainWindow):
 
     # ===================== LASER =====================
     def change_laser_topic(self, topic: str):
+        def do_unsub():
+            if hasattr(self, 'laser_subscriber') and self.laser_subscriber:
+                try:
+                    self.node.destroy_subscription(self.laser_subscriber)
+                except Exception:
+                    pass
+                self.laser_subscriber = None
+
+        def do_sub(sel_topic):
+            self.laser_subscriber = self.node.create_subscription(
+                LaserScan, sel_topic, self.laser_callback, qos_profile=10
+            )
+
+        self._post_ros(do_unsub)
+
         if topic == 'Laser Topic':
             self.selected_laser_topic = None
-            if self.laser_subscriber:
-                self.laser_subscriber.destroy()
-                self.laser_subscriber = None
-            self.laser_points_item.setData(pos=np.empty((0, 3)))
+            self.laser_points_item.setData(pos=np.empty((0, 3), dtype=np.float32))
             return
 
         self.selected_laser_topic = topic
+        self._post_ros(lambda: do_sub(topic))
 
-        if self.laser_subscriber:
-            self.laser_subscriber.destroy()
-            self.laser_subscriber = None
-
-        self.laser_subscriber = self.node.create_subscription(
-            LaserScan,
-            topic,
-            self.laser_callback,
-            qos_profile=10
-        )
 
     def laser_callback(self, msg: LaserScan):
         try:
