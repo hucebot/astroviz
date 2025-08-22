@@ -27,7 +27,7 @@ import rclpy
 from rclpy.node import Node
 from rclpy.qos import QoSProfile, DurabilityPolicy
 from sensor_msgs.msg import LaserScan
-from nav_msgs.msg import OccupancyGrid, Odometry
+from nav_msgs.msg import OccupancyGrid, Odometry, Path
 from tf2_msgs.msg import TFMessage
 from std_msgs.msg import String
 import tf2_ros
@@ -96,6 +96,7 @@ class OrthogonalViewer(QMainWindow):
         self.selected_object_name = None
         self.map_item = None
         self.map_data = None
+        self.path_item = None
         self._left_pressed = False
         self._left_dragged = False
         self._press_pos = None
@@ -189,6 +190,11 @@ class OrthogonalViewer(QMainWindow):
         self.odometry_combo.raise_()
         self.odometry_combo.currentTextChanged.connect(self.change_odometry_topic)
 
+        self.path_combo = QComboBox(self.gl_view)
+        self.path_combo.setFixedWidth(180)
+        self.path_combo.raise_()
+        self.path_combo.currentTextChanged.connect(self.change_path_topic)
+
         self.loading_label = QLabel("Loading model...", self.gl_view)
         self.loading_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.loading_label.setFont(QFont('Arial', 18, QFont.Weight.Bold))
@@ -248,7 +254,7 @@ class OrthogonalViewer(QMainWindow):
         self.selected_odometry_topic = None
         self.selected_map_topic = None
 
-        self.odom_path_item = GLLinePlotItem(color=(1, 0, 0, 0.5), width=2, mode='line_strip')
+        self.odom_path_item = GLLinePlotItem(color=(1.0, 0.0, 0.0, 0.5), width=2, mode='line_strip')
         self.gl_view.addItem(self.odom_path_item)
 
         self.odom_arrow_item = None
@@ -259,6 +265,13 @@ class OrthogonalViewer(QMainWindow):
             head_radius=0.01,
             alpha=0.5
         )
+
+        self.selected_path_topic = None
+        self.path_item = gl.GLLinePlotItem(color=(0.0, 1.0, 0.0, 0.5), width=5, mode='line_strip')
+        self.gl_view.addItem(self.path_item)
+        self.path_item.setVisible(False)
+
+        self.gl_view.addItem(self.path_item)
         self.odom_path_item.setVisible(False)
         if self.odom_arrow_item:
             self.odom_arrow_item.setVisible(False)
@@ -346,6 +359,45 @@ class OrthogonalViewer(QMainWindow):
         for i in range(4):
             mat.setRow(i, QVector4D(*T_global[i, :]))
         self.map_item.setTransform(mat)
+
+    # ===================== PATH =====================
+    def path_callback(self, msg: Path):
+        # Ignora mensajes “rezagados” después de desuscribirte
+        if not getattr(self, 'selected_path_topic', None):
+            return
+
+        if not msg.poses:
+            self.path_item.setData(pos=np.empty((0, 3), dtype=np.float32))
+            return
+
+        groups = {}
+        for ps in msg.poses:
+            fid = ps.header.frame_id if ps.header.frame_id else msg.header.frame_id
+            p = ps.pose.position
+            groups.setdefault(fid, []).append([p.x, p.y, p.z])
+
+        world_chunks = []
+        for fid, pts in groups.items():
+            if not pts:
+                continue
+            pts = np.asarray(pts, dtype=np.float32)
+            try:
+                tf = self.tf_buffer.lookup_transform(self.root_frame, fid, rclpy.time.Time())
+                t, q = tf.transform.translation, tf.transform.rotation
+                T_tf = np.eye(4, dtype=np.float32)
+                T_tf[:3, :3] = quaternion_to_matrix(q)
+                T_tf[:3, 3]  = [t.x, t.y, t.z]
+            except Exception as e:
+                self.node.get_logger().warn(f"[PATH] TF transform failed from {fid} to {self.root_frame}: {e}")
+                T_tf = np.eye(4, dtype=np.float32)
+
+            hw = np.hstack((pts, np.ones((pts.shape[0], 1), dtype=np.float32)))
+            pw = (T_tf @ hw.T).T[:, :3].astype(np.float32)
+            world_chunks.append(pw)
+
+        path_world = np.vstack(world_chunks) if world_chunks else np.empty((0, 3), dtype=np.float32)
+        self.path_item.setData(pos=path_world)
+
 
     # ===================== ODOMETRY =====================
     def odometry_callback(self, msg: Odometry):
@@ -680,6 +732,26 @@ class OrthogonalViewer(QMainWindow):
                 self.change_odometry_topic('Odometry')
             self.odometry_combo.blockSignals(False)
 
+        path_topics = []
+        try:
+            path_topics = [t for t, ttype in self.node.get_topic_names_and_types()
+                           if 'nav_msgs/msg/Path' in ttype]
+        except Exception:
+            pass
+
+        current_path = self.path_combo.currentText()
+        path_items = ['Path'] + path_topics
+        if [self.path_combo.itemText(i) for i in range(self.path_combo.count())] != path_items:
+            self.path_combo.blockSignals(True)
+            self.path_combo.clear()
+            self.path_combo.addItems(path_items)
+            if current_path in path_items:
+                self.path_combo.setCurrentText(current_path)
+            else:
+                self.path_combo.setCurrentIndex(0)
+                self.change_path_topic('Path')
+            self.path_combo.blockSignals(False)
+
     def change_map_topic(self, topic: str):
         def do_unsub():
             if hasattr(self, 'map_subscriber') and self.map_subscriber:
@@ -709,6 +781,38 @@ class OrthogonalViewer(QMainWindow):
         self.selected_map_topic = topic
         self._post_ros(lambda: do_sub(topic))
 
+    def change_path_topic(self, topic: str):
+        def do_unsub():
+            if hasattr(self, 'path_subscriber') and self.path_subscriber:
+                try:
+                    self.node.destroy_subscription(self.path_subscriber)
+                except Exception:
+                    pass
+                self.path_subscriber = None
+
+        def do_sub(sel_topic):
+            self.path_subscriber = self.node.create_subscription(
+                Path, sel_topic, self.path_callback, qos_profile=10
+            )
+
+        self._post_ros(do_unsub)
+
+        if topic == 'Path':
+            self.selected_path_topic = None
+            if self.path_item is None:
+                self.path_item = gl.GLLinePlotItem(color=(0.0, 0.0, 1.0, 0.5), width=5, mode='line_strip')
+                self.gl_view.addItem(self.path_item)
+            self.path_item.setData(pos=np.empty((0, 3), dtype=np.float32))
+            self.path_item.setVisible(False)
+            return
+
+        self.selected_path_topic = topic
+        if self.path_item is None:
+            self.path_item = gl.GLLinePlotItem(color=(0.0, 0.0, 1.0, 0.5), width=5, mode='line_strip')
+            self.gl_view.addItem(self.path_item)
+        self.path_item.setData(pos=np.empty((0, 3), dtype=np.float32))
+        self.path_item.setVisible(True)
+        self._post_ros(lambda: do_sub(topic))
 
 
     def change_odometry_topic(self, topic: str):
@@ -980,6 +1084,8 @@ class OrthogonalViewer(QMainWindow):
         self.map_combo.move(x, y)
         x += self.map_combo.width() + margin
         self.odometry_combo.move(x, y)
+        x += self.odometry_combo.width() + margin
+        self.path_combo.move(x, y)
 
     def toggle_tf(self):
         self.render_tf = self.btn_tf.isChecked()
