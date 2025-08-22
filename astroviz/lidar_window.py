@@ -68,6 +68,7 @@ class LiDARViewer(QMainWindow):
 
         self.gl_widget = gl.GLViewWidget()
         self.gl_widget.opts['distance'] = 30
+        self.gl_widget.setBackgroundColor('#090c28')
         layout.addWidget(self.gl_widget)
 
         self._mousePress = self.gl_widget.mousePressEvent
