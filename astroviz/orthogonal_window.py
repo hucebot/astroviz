@@ -10,6 +10,8 @@ import json
 import cv2
 import time
 
+from collections import deque
+
 import collections
 import collections.abc
 collections.Mapping = collections.abc.Mapping
@@ -25,7 +27,7 @@ import rclpy
 from rclpy.node import Node
 from rclpy.qos import QoSProfile, DurabilityPolicy
 from sensor_msgs.msg import LaserScan
-from nav_msgs.msg import OccupancyGrid
+from nav_msgs.msg import OccupancyGrid, Odometry
 from tf2_msgs.msg import TFMessage
 from std_msgs.msg import String
 import tf2_ros
@@ -33,7 +35,7 @@ from ament_index_python.packages import get_package_share_directory
 
 import pyqtgraph as pg
 import pyqtgraph.opengl as gl
-from pyqtgraph.opengl import GLScatterPlotItem, GLMeshItem, GLLinePlotItem
+from pyqtgraph.opengl import GLMeshItem, GLLinePlotItem
 
 from urdfpy import URDF
 import trimesh
@@ -103,6 +105,7 @@ class OrthogonalViewer(QMainWindow):
         self._last_link_tf = {}
         self._axes_last_update_ms = 0
         self._axes_update_interval_ms = 100
+
         # ----------------------
 
         self.setWindowTitle('Orthogonal Viewer')
@@ -124,6 +127,9 @@ class OrthogonalViewer(QMainWindow):
 
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer, node)
+        self._ros_actions = deque()
+        self._ros_actions_lock = threading.Lock()
+        self._ros_worker_timer = self.node.create_timer(0.02, self._process_ros_actions)
 
         w = QWidget()
         self.setCentralWidget(w)
@@ -178,6 +184,11 @@ class OrthogonalViewer(QMainWindow):
         self.map_combo.raise_()
         self.map_combo.currentTextChanged.connect(self.change_map_topic)
 
+        self.odometry_combo = QComboBox(self.gl_view)
+        self.odometry_combo.setFixedWidth(180)
+        self.odometry_combo.raise_()
+        self.odometry_combo.currentTextChanged.connect(self.change_odometry_topic)
+
         self.loading_label = QLabel("Loading model...", self.gl_view)
         self.loading_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.loading_label.setFont(QFont('Arial', 18, QFont.Weight.Bold))
@@ -228,7 +239,47 @@ class OrthogonalViewer(QMainWindow):
         self._mouse_right_pressed = False
         self._last_mouse_pos = None
 
+        # ----------------------
+
+        self.odom_positions = []
+        self._odom_dirty = False
+        self.odom_max_points = 20000
+        self._last_odom_T = None
+        self.selected_odometry_topic = None
+        self.selected_map_topic = None
+
+        self.odom_path_item = GLLinePlotItem(color=(1, 0, 0, 0.5), width=2, mode='line_strip')
+        self.gl_view.addItem(self.odom_path_item)
+
+        self.odom_arrow_item = None
+        self._prepare_odom_arrow_mesh(
+            shaft_len=0.10,
+            shaft_radius=0.005,
+            head_len=0.05,
+            head_radius=0.01,
+            alpha=0.5
+        )
+        self.odom_path_item.setVisible(False)
+        if self.odom_arrow_item:
+            self.odom_arrow_item.setVisible(False)
+
         self.load_world_objects()
+
+    # ===================== HELPERS =====================
+    def _post_ros(self, fn):
+        with self._ros_actions_lock:
+            self._ros_actions.append(fn)
+
+    def _process_ros_actions(self):
+        while True:
+            with self._ros_actions_lock:
+                if not self._ros_actions:
+                    return
+                fn = self._ros_actions.popleft()
+            try:
+                fn()
+            except Exception as e:
+                self.node.get_logger().error(f"[ROS ACTION] {e}")
 
     # ===================== MAP =====================
     def map_callback(self, msg):
@@ -295,6 +346,76 @@ class OrthogonalViewer(QMainWindow):
         for i in range(4):
             mat.setRow(i, QVector4D(*T_global[i, :]))
         self.map_item.setTransform(mat)
+
+    # ===================== ODOMETRY =====================
+    def odometry_callback(self, msg: Odometry):
+        p = msg.pose.pose.position
+        q = msg.pose.pose.orientation
+
+        T_pose = np.eye(4, dtype=np.float32)
+        T_pose[:3, :3] = quaternion_to_matrix(q)
+        T_pose[:3, 3]  = [p.x, p.y, p.z]
+
+        try:
+            tf = self.tf_buffer.lookup_transform(self.root_frame, msg.header.frame_id, rclpy.time.Time())
+            t, rq = tf.transform.translation, tf.transform.rotation
+            T_tf = np.eye(4, dtype=np.float32)
+            T_tf[:3, :3] = quaternion_to_matrix(rq)
+            T_tf[:3, 3]  = [t.x, t.y, t.z]
+            T_global = T_tf @ T_pose
+        except Exception:
+            T_global = T_pose
+
+        pos = T_global[:3, 3].astype(np.float32)
+        self.odom_positions.append(pos)
+        if len(self.odom_positions) > self.odom_max_points:
+            self.odom_positions = self.odom_positions[-self.odom_max_points:]
+
+        self._last_odom_T = T_global
+        self._odom_dirty = True
+
+
+    def _prepare_odom_arrow_mesh(self, shaft_len=0.25, shaft_radius=0.01,
+                                 head_len=0.08, head_radius=0.03, alpha=0.5):
+        try:
+            shaft = trimesh.creation.cylinder(radius=shaft_radius, height=shaft_len, sections=24)
+            head  = trimesh.creation.cone(radius=head_radius, height=head_len, sections=24)
+        except Exception as e:
+            self.node.get_logger().error(f"[ODOM] Could not create arrow with trimesh: {e}")
+            return
+
+        R = trimesh.transformations.rotation_matrix(math.radians(90.0), [0, 1, 0])
+        shaft.apply_transform(R)
+        head.apply_transform(R)
+
+        T_shift_shaft = np.eye(4, dtype=np.float32)
+        T_shift_shaft[0, 3] = shaft_len * 0.5
+        shaft.apply_transform(T_shift_shaft)
+
+        T_shift_head = np.eye(4, dtype=np.float32)
+        T_shift_head[0, 3] = shaft_len
+        head.apply_transform(T_shift_head)
+
+        arrow = trimesh.util.concatenate([shaft, head])
+
+        verts   = arrow.vertices.view(np.ndarray).astype(np.float32)
+        faces   = arrow.faces.view(np.ndarray)
+        normals = arrow.vertex_normals.view(np.ndarray) if arrow.vertex_normals is not None else None
+
+        self.odom_arrow_item = gl.GLMeshItem(
+            vertexes=verts,
+            faces=faces,
+            normals=normals,
+            smooth=True,
+            shader='shaded',
+            drawFaces=True,
+            drawEdges=False,
+            faceColor=(1.0, 0.0, 0.0, alpha)
+        )
+        self.odom_arrow_item.setGLOptions('translucent')
+        self.gl_view.addItem(self.odom_arrow_item)
+
+
 
     # ===================== WORLD =====================
     def load_world_objects(self):
@@ -536,23 +657,98 @@ class OrthogonalViewer(QMainWindow):
                 self.change_map_topic('Map')
             self.map_combo.blockSignals(False)
 
+        odometry_topics = []
+        try:
+            odometry_topics = [t for t, ttype in self.node.get_topic_names_and_types()
+                              if 'nav_msgs/msg/Odometry' in ttype]
+        except Exception:
+            pass
+
+        current_odometry = self.odometry_combo.currentText()
+        odometry_items = ['Odometry'] + odometry_topics
+        if [self.odometry_combo.itemText(i) for i in range(self.odometry_combo.count())] != odometry_items:
+            self.odometry_combo.blockSignals(True)
+            self.odometry_combo.clear()
+            self.odometry_combo.addItems(odometry_items)
+            if current_odometry in odometry_items:
+                self.odometry_combo.setCurrentText(current_odometry)
+            else:
+                self.odometry_combo.setCurrentIndex(0)
+                self.change_odometry_topic('Odometry')
+            self.odometry_combo.blockSignals(False)
+
     def change_map_topic(self, topic: str):
-        if topic == 'Map':
+        def do_unsub():
             if hasattr(self, 'map_subscriber') and self.map_subscriber:
-                self.map_subscriber.destroy()
+                try:
+                    self.node.destroy_subscription(self.map_subscriber)
+                except Exception:
+                    pass
                 self.map_subscriber = None
+
+        def do_sub(sel_topic):
+            self.map_subscriber = self.node.create_subscription(
+                OccupancyGrid, sel_topic, self.map_callback, qos_profile=10
+            )
+
+        self._post_ros(do_unsub)
+
+        if topic == 'Map':
+            self.selected_map_topic = None
+            if self.map_item:
+                try:
+                    self.gl_view.removeItem(self.map_item)
+                except Exception:
+                    pass
+                self.map_item = None
             return
 
-        if hasattr(self, 'map_subscriber') and self.map_subscriber:
-            self.map_subscriber.destroy()
-            self.map_subscriber = None
+        self.selected_map_topic = topic
+        self._post_ros(lambda: do_sub(topic))
 
-        self.map_subscriber = self.node.create_subscription(
-            OccupancyGrid,
-            topic,
-            self.map_callback,
-            qos_profile=10
-        )
+
+
+    def change_odometry_topic(self, topic: str):
+        def _reset_odom_visual():
+            self.odom_positions = []
+            self._last_odom_T = None
+            self._odom_dirty = True
+            self.odom_path_item.setData(pos=np.empty((0, 3), dtype=np.float32))
+            self.odom_path_item.setVisible(False)
+            if self.odom_arrow_item:
+                self.odom_arrow_item.setVisible(False)
+
+        def do_unsub():
+            if hasattr(self, 'odometry_subscriber') and self.odometry_subscriber:
+                try:
+                    self.node.destroy_subscription(self.odometry_subscriber)
+                except Exception:
+                    pass
+                self.odometry_subscriber = None
+
+        def do_sub(sel_topic):
+            self.odometry_subscriber = self.node.create_subscription(
+                Odometry, sel_topic, self.odometry_callback, qos_profile=10
+            )
+
+        self._post_ros(do_unsub)
+        _reset_odom_visual()
+
+        if topic == 'Odometry':
+            self.selected_odometry_topic = None
+            return
+
+        self.selected_odometry_topic = topic
+        self._post_ros(lambda: do_sub(topic))
+
+        self.odom_path_item.setVisible(True)
+        if self.odom_arrow_item is None:
+            self._prepare_odom_arrow_mesh(
+                shaft_len=0.10, shaft_radius=0.005, head_len=0.05, head_radius=0.01, alpha=0.5
+            )
+        if self.odom_arrow_item:
+            self.odom_arrow_item.setVisible(True)
+
 
     # ===================== SELECTION =====================
     def ray_intersect_aabb(self, ray_origin, ray_dir, bbox_min, bbox_max):
@@ -779,6 +975,8 @@ class OrthogonalViewer(QMainWindow):
         self.laser_combo.move(x, y)
         x += self.laser_combo.width() + margin
         self.map_combo.move(x, y)
+        x += self.map_combo.width() + margin
+        self.odometry_combo.move(x, y)
 
     def toggle_tf(self):
         self.render_tf = self.btn_tf.isChecked()
@@ -821,7 +1019,6 @@ class OrthogonalViewer(QMainWindow):
                 T_tf[:3, 3] = [t.x, t.y, t.z]
                 T = T_tf @ T_lv
 
-                # Early-out si no cambió lo suficiente
                 last = self._last_link_tf.get(link_name)
                 if last is not None and np.allclose(T, last, atol=1e-4, rtol=0.0):
                     continue
@@ -882,6 +1079,20 @@ class OrthogonalViewer(QMainWindow):
             for i in range(4):
                 mat.setRow(i, QVector4D(*T[i, :]))
             item.setTransform(mat)
+
+        if self.selected_odometry_topic:
+            if self._odom_dirty:
+                if self.odom_positions:
+                    self.odom_path_item.setData(pos=np.asarray(self.odom_positions, dtype=np.float32))
+                else:
+                    self.odom_path_item.setData(pos=np.empty((0, 3), dtype=np.float32))
+                self._odom_dirty = False
+
+            if self._last_odom_T is not None and self.odom_arrow_item is not None:
+                mat = QMatrix4x4()
+                for i in range(4):
+                    mat.setRow(i, QVector4D(*self._last_odom_T[i, :]))
+                self.odom_arrow_item.setTransform(mat)
 
 
 def main():
