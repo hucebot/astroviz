@@ -1,10 +1,9 @@
 # 🚀 AstroViz 🚀
 
-<img src="https://github.com/CDonosoK/astroviz/blob/main/images/AstroViz.png" alt="AstroViz Image" width="800" height="500">
+<img src="https://github.com/hucebot/astroviz/blob/main/images/AstroViz.png" alt="AstroViz Image" width="800" height="500">
 
 [![License](https://img.shields.io/badge/License-MIT--Clause-blue.svg)](https://opensource.org/licenses/MIT)
 [![ROS2 Version](https://img.shields.io/badge/ROS-Humble-green)](https://docs.ros.org/en/humble/index.html)
-[![GitHub Stars](https://img.shields.io/github/stars/CDonosoK/astroviz?style=social)](https://github.com/CDonosoK/astroviz/stargazers)
 
 AstroViz is the ultimate real-time data visualization suite for ROS 2 robotic missions. Built from the ground up for flexibility, clarity, and performance, AstroViz empowers roboticists, engineers, and field operators with a unified interface to monitor, control, and debug complex systems in real-time.
 
@@ -20,20 +19,12 @@ AstroViz is the ultimate real-time data visualization suite for ROS 2 robotic mi
   <tr>
     <td colspan="2" align="center">
       <strong>DASHBOARD VIEWER</strong><br>
-      <img src="https://github.com/CDonosoK/astroviz/blob/main/images/dashboard.gif" alt="Teleoperation Overview" width="800">
+      <img src="https://github.com/hucebot/astroviz/blob/main/images/dashboard.gif" alt="Teleoperation Overview" width="800">
     </td>
   </tr>
 </table>
 
 For a detailed view of all implemented windows, see: [windows implemented](WINDOWS_IMPLEMENTED.md)
-
-## Support 💖
-
-If you find this project helpful and want to support its ongoing development, you can buy me a coffee! Every contribution helps me dedicate more time to improving and maintaining open-source software.
-
-<a href="https://www.buymeacoffee.com/CDonosoK" target="https://buymeacoffee.com/cdonosok">
-  <img src="https://img.shields.io/badge/Buy%20Me%20a%20Coffee-Support-orange?style=for-the-badge&logo=buy-me-a-coffee&logoColor=white" alt="Buy Me a Coffee">
-</a>
 
 
 ## Table of Contents
@@ -65,7 +56,7 @@ To run this package, ensure the following dependencies are installed:
 #### Clone the Repository
 Start by cloning the repository:
 ```bash
-git clone git@github.com:CDonosoK/astroviz.git
+git clone git@github.com:hucebot/astroviz.git
 ```
 
 #### Build Using Docker
@@ -119,7 +110,7 @@ ros2 launch astroviz dashboard_launcher.launch.py
 This package is maintained by:
 
 **Clemente Donoso**  
-Email: [clemente.donosok@gmail.com](mailto:clemente.donosok@gmail.com)
+Email: [clemente.donoso@inria.fr](mailto:clemente.donoso@inria.fr)
 GitHub: [CDonosoK](https://github.com/CDonosoK)  
 
 ---

@@ -29,7 +29,7 @@ from rclpy.qos import QoSProfile, DurabilityPolicy
 from sensor_msgs.msg import LaserScan
 from nav_msgs.msg import OccupancyGrid, Odometry, Path
 from tf2_msgs.msg import TFMessage
-from std_msgs.msg import String
+from std_msgs.msg import String, Float64MultiArray, Header
 import tf2_ros
 from ament_index_python.packages import get_package_share_directory
 
@@ -106,6 +106,14 @@ class OrthogonalViewer(QMainWindow):
         self._last_link_tf = {}
         self._axes_last_update_ms = 0
         self._axes_update_interval_ms = 100
+
+        self.traj_subscriber = None
+        self.traj_header_subscriber = None
+        self.selected_traj_topic = None
+        self.traj_header_frame = None
+        self._traj_src = None
+        self._traj_dirty = False
+        self.traj_items = []
 
         # ----------------------
 
@@ -194,6 +202,11 @@ class OrthogonalViewer(QMainWindow):
         self.path_combo.setFixedWidth(180)
         self.path_combo.raise_()
         self.path_combo.currentTextChanged.connect(self.change_path_topic)
+
+        self.traj_topic_combo = QComboBox(self.gl_view)
+        self.traj_topic_combo.setFixedWidth(220)
+        self.traj_topic_combo.raise_()
+        self.traj_topic_combo.currentTextChanged.connect(self.change_traj_topic)
 
         self.loading_label = QLabel("Loading model...", self.gl_view)
         self.loading_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -648,6 +661,110 @@ class OrthogonalViewer(QMainWindow):
 
         self.laser_points_item.setData(pos=points_world)
 
+    # ===================== TRAJECTORIES =====================
+    def change_traj_topic(self, topic: str):
+        def do_unsub():
+            if self.traj_subscriber:
+                try: self.node.destroy_subscription(self.traj_subscriber)
+                except Exception: pass
+                self.traj_subscriber = None
+            if self.traj_header_subscriber:
+                try: self.node.destroy_subscription(self.traj_header_subscriber)
+                except Exception: pass
+                self.traj_header_subscriber = None
+
+        # Limpia suscripciones e items
+        self._post_ros(do_unsub)
+        self.selected_traj_topic = None
+        self.traj_header_frame = None
+        self._traj_src = None
+        self._traj_dirty = False
+        for it in self.traj_items:
+            try: self.gl_view.removeItem(it)
+            except Exception: pass
+        self.traj_items = []
+
+        if topic == 'Trajectories':
+            return
+
+        self.selected_traj_topic = topic
+
+        def do_sub(sel_topic):
+            self.traj_subscriber = self.node.create_subscription(
+                Float64MultiArray, sel_topic, self.traj_callback, qos_profile=10
+            )
+            try:
+                header_qos = QoSProfile(depth=1, durability=DurabilityPolicy.TRANSIENT_LOCAL)
+                self.traj_header_subscriber = self.node.create_subscription(
+                    Header, f'{sel_topic}/header', self.traj_header_callback, qos_profile=header_qos
+                )
+            except Exception:
+                self.traj_header_subscriber = None
+
+        self._post_ros(lambda: do_sub(topic))
+
+    def traj_header_callback(self, msg: Header):
+        self.traj_header_frame = msg.frame_id or None
+
+    def _ensure_traj_items(self, T: int):
+        def color_i(i, n):
+            palette = [
+                (1.0, 0.2, 0.2, 0.9),
+                (0.2, 1.0, 0.2, 0.9),
+                (0.2, 0.6, 1.0, 0.9),
+                (1.0, 1.0, 0.2, 0.9),
+                (1.0, 0.2, 1.0, 0.9),
+                (0.2, 1.0, 1.0, 0.9),
+                (1.0, 0.6, 0.2, 0.9),
+                (0.6, 0.2, 1.0, 0.9),
+                (0.6, 1.0, 0.2, 0.9),
+                (0.2, 0.8, 0.8, 0.9),
+            ]
+            return palette[i % len(palette)]
+
+        while len(self.traj_items) < T:
+            i = len(self.traj_items)
+            item = gl.GLLinePlotItem(color=color_i(i, T), width=3, mode='line_strip')
+            item.setVisible(True)
+            self.gl_view.addItem(item)
+            self.traj_items.append(item)
+
+        while len(self.traj_items) > T:
+            it = self.traj_items.pop()
+            try: self.gl_view.removeItem(it)
+            except Exception: pass
+
+    def traj_callback(self, msg: Float64MultiArray):
+        data = np.asarray(msg.data, dtype=np.float32)
+        if data.size == 0:
+            return
+
+        T = P = None
+        try:
+            labels = [d.label for d in msg.layout.dim]
+            if 'trajectories' in labels and 'points' in labels:
+                T = msg.layout.dim[labels.index('trajectories')].size
+                P = msg.layout.dim[labels.index('points')].size
+        except Exception:
+            pass
+
+        if T is None or P is None or T <= 0 or P <= 0:
+            T = 10
+            if data.size % (3 * T) == 0:
+                P = min(20, data.size // (3 * T))
+            else:
+                self.node.get_logger().warn("[TRAJ] Could not infer shape from layout. Please use 'trajectories' and 'points' labels.")
+                return
+        try:
+            arr = data.reshape(T * P, 3).reshape(T, P, 3)
+        except Exception:
+            self.node.get_logger().warn(f"[TRAJ] Shape inference failed. Data size: {data.size}, T: {T}, P: {P}.")
+            return
+
+        self._traj_src = arr
+        self._traj_dirty = True
+
+
     # ===================== FRAMES & RENDERING =====================
     def _populate_frames(self):
         try:
@@ -717,6 +834,26 @@ class OrthogonalViewer(QMainWindow):
                               if 'nav_msgs/msg/Odometry' in ttype]
         except Exception:
             pass
+
+        traj_topics = []
+        try:
+            traj_topics = [t for t, ttype in self.node.get_topic_names_and_types()
+                           if 'std_msgs/msg/Float64MultiArray' in ttype]
+        except Exception:
+            pass
+
+        current_traj_topic = self.traj_topic_combo.currentText()
+        traj_items = ['Trajectories'] + traj_topics
+        if [self.traj_topic_combo.itemText(i) for i in range(self.traj_topic_combo.count())] != traj_items:
+            self.traj_topic_combo.blockSignals(True)
+            self.traj_topic_combo.clear()
+            self.traj_topic_combo.addItems(traj_items)
+            if current_traj_topic in traj_items:
+                self.traj_topic_combo.setCurrentText(current_traj_topic)
+            else:
+                self.traj_topic_combo.setCurrentIndex(0)
+                self.change_traj_topic('Trajectories')
+            self.traj_topic_combo.blockSignals(False)
 
         current_odometry = self.odometry_combo.currentText()
         odometry_items = ['Odometry'] + odometry_topics
@@ -1085,6 +1222,8 @@ class OrthogonalViewer(QMainWindow):
         self.odometry_combo.move(x, y)
         x += self.odometry_combo.width() + margin
         self.path_combo.move(x, y)
+        x += self.path_combo.width() + margin
+        self.traj_topic_combo.move(x, y)
 
     def toggle_tf(self):
         self.render_tf = self.btn_tf.isChecked()
@@ -1201,6 +1340,37 @@ class OrthogonalViewer(QMainWindow):
                 for i in range(4):
                     mat.setRow(i, QVector4D(*self._last_odom_T[i, :]))
                 self.odom_arrow_item.setTransform(mat)
+
+        if self._traj_dirty and self._traj_src is not None and len(self._traj_src.shape) == 3:
+            T, P, _ = self._traj_src.shape
+
+            # Asegura los items
+            self._ensure_traj_items(T)
+
+            # Transformación al root_frame (si header trae otro frame)
+            src_frame = self.traj_header_frame
+            if src_frame and src_frame != self.root_frame:
+                try:
+                    tf = self.tf_buffer.lookup_transform(self.root_frame, src_frame, rclpy.time.Time())
+                    t, q = tf.transform.translation, tf.transform.rotation
+                    T_tf = np.eye(4, dtype=np.float32)
+                    T_tf[:3, :3] = quaternion_to_matrix(q)
+                    T_tf[:3, 3] = [t.x, t.y, t.z]
+                except Exception as e:
+                    self.node.get_logger().warn(f"[TRAJ] TF {src_frame}->{self.root_frame} falló: {e}")
+                    T_tf = np.eye(4, dtype=np.float32)
+            else:
+                T_tf = np.eye(4, dtype=np.float32)
+
+            # Aplica T_tf a cada línea y pinta
+            ones = np.ones((P, 1), dtype=np.float32)
+            for i in range(T):
+                pts = self._traj_src[i]  # (P,3)
+                hw = np.hstack((pts, ones))           # (P,4)
+                pw = (T_tf @ hw.T).T[:, :3].astype(np.float32)
+                self.traj_items[i].setData(pos=pw)
+
+            self._traj_dirty = False
 
 
 def main():

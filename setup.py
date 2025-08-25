@@ -35,7 +35,7 @@ setup(
             'gstreamer_viewer = astroviz.gstreamer_window:main',
             'robot_state_viewer = astroviz.robot_state_window:main',
             'motor_state_viewer = astroviz.motor_state_viewer:main',
-            'dummy_map_publisher = astroviz.fake_map:main',
+            'dummy_trajectories_publisher = astroviz.tools.dumy_trajectories:main',
         ],
     },
 )
