@@ -1,0 +1,96 @@
+
+main_window:
+  name: '3D Perspective'
+  resizable: true
+  x: 0
+  y: 0
+  width: 1600
+  height: 800
+  render_hz: 60
+  camera_velocity: 0.1
+  compressed_image_topic: 'ros2_3d_interface/viewer_3d/image_compressed'
+
+rendering:
+  pyramid: false
+  trajectory: true
+  image: false 
+  robot: true
+
+viewports:
+  frontal:
+    use: true
+    x: 0
+    y: 0
+    width: 1000
+    height: 800
+    camera:
+      x_origin: -0.04284239
+      y_origin: 0.0205328
+      z_origin: 0.00186915
+      x_target: 1.0
+      y_target: 0.0
+      z_target: 0.0
+
+  side:
+    use: true
+    x: 1000
+    y: 500
+    width: 600
+    height: 400
+    camera:
+      x_origin: 1.0
+      y_origin: 1.0
+      z_origin: 0.2
+      x_target: 1.0
+      y_target: 0.5
+      z_target: 0.3
+
+  upper:
+    use: true
+    x: 1000
+    y: 0
+    width: 600
+    height: 400
+    camera:
+      x_origin: 0.5
+      y_origin: 0.0
+      z_origin: 1.0
+      x_target: 0.8
+      y_target: 0.0
+      z_target: 0.0
+
+robot:
+  model: 'H1'
+  version: 'with_hand'
+
+streamdeck:
+  reset_view_topic: '/streamdeck/reset_view'
+
+rgb_image:
+  visualizer:
+    x: 0.2
+    y: 0.22
+    z: -0.11
+    width: 0.15
+    height: 0.10
+  rgb_image_width: 1280
+  width: 1280
+  height: 720
+  topic: '/camera/color/image_raw'
+
+point_cloud:
+  width: 640
+  height: 576
+  size_multiplier: 3
+  point_size: 1
+  hfov: 100
+  vfov: 100
+  topic: '/camera/depth/points' #/camera/depth/points
+  max_points: 200000
+  remove_nans: false
+
+trajectory:
+  total_trajectories: 10
+  update_rate : 0.1
+  number_of_points_per_trajectory: 16
+  topic: '/trajectory_points'

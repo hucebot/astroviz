@@ -36,6 +36,7 @@ setup(
             'robot_state_viewer = astroviz.robot_state_window:main',
             'motor_state_viewer = astroviz.motor_state_viewer:main',
             'dummy_trajectories_publisher = astroviz.tools.dumy_trajectories:main',
+            'fpv_viewer = astroviz.fpv_window:main',
         ],
     },
 )
