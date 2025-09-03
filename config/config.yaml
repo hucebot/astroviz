@@ -1,6 +1,5 @@
-
 main_window:
-  name: '3D Perspective'
+  name: 3D Perspective
   resizable: true
   x: 0
   y: 0
@@ -8,14 +7,12 @@ main_window:
   height: 800
   render_hz: 60
   camera_velocity: 0.1
-  compressed_image_topic: 'ros2_3d_interface/viewer_3d/image_compressed'
-
+  compressed_image_topic: ros2_3d_interface/viewer_3d/image_compressed
 rendering:
   pyramid: false
   trajectory: true
-  image: false 
+  image: false
   robot: true
-
 viewports:
   frontal:
     use: true
@@ -24,13 +21,12 @@ viewports:
     width: 1000
     height: 800
     camera:
-      x_origin: -0.04284239
-      y_origin: 0.0205328
-      z_origin: 0.00186915
-      x_target: 1.0
-      y_target: 0.0
-      z_target: 0.0
-
+      x_origin: 0.07480990886688232
+      y_origin: 0.00436612032353878
+      z_origin: -0.001414671540260315
+      x_target: 0.9995607137680054
+      y_target: -0.013841543346643448
+      z_target: 0.013072101399302483
   side:
     use: true
     x: 1000
@@ -44,7 +40,6 @@ viewports:
       x_target: 1.0
       y_target: 0.5
       z_target: 0.3
-
   upper:
     use: true
     x: 1000
@@ -58,39 +53,34 @@ viewports:
       x_target: 0.8
       y_target: 0.0
       z_target: 0.0
-
 robot:
-  model: 'H1'
-  version: 'with_hand'
-
+  model: H1
+  version: with_hand
 streamdeck:
-  reset_view_topic: '/streamdeck/reset_view'
-
+  reset_view_topic: /streamdeck/reset_view
 rgb_image:
   visualizer:
     x: 0.2
     y: 0.22
     z: -0.11
     width: 0.15
-    height: 0.10
+    height: 0.1
   rgb_image_width: 1280
   width: 1280
   height: 720
-  topic: '/camera/color/image_raw'
-
+  topic: /camera/color/image_raw
 point_cloud:
   width: 640
   height: 576
   size_multiplier: 3
   point_size: 1
-  hfov: 100
-  vfov: 100
-  topic: '/camera/depth/points' #/camera/depth/points
+  hfov: 100.0
+  vfov: 100.0
+  topic: /camera/depth/points
   max_points: 200000
   remove_nans: false
-
 trajectory:
   total_trajectories: 10
-  update_rate : 0.1
+  update_rate: 0.1
   number_of_points_per_trajectory: 16
-  topic: '/trajectory_points'
+  topic: /trajectory_points
