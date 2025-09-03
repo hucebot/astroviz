@@ -587,7 +587,7 @@ def load_config(path: str | None)->dict | None:
 
 def parse_args():
     ap = argparse.ArgumentParser(description="FPV Viewer")
-    ap.add_argument("--config", type=str, default=None, help="Path to YAML config file")
+    ap.add_argument("--config", type=str, default='/ros2_ws/src/astroviz/config/config.yaml', help="Path to YAML config file")
     return ap.parse_args()
 
 def main(args=None):

@@ -92,6 +92,7 @@ This package nodes that are designed to facilitate teleoperation and visualizati
 - **grid_map_viewer**: Visualizes grid map data for navigation and planning.
 - **robot_state_viewer**: Displays the current state of the robot related to the joint positions and transformations.
 - **motor_state_viewer**: Monitors and visualizes the state of the robot's motors, including temperature and voltage readings.
+- **fpv_viewer**: First-person view from the robot's perspective using 3d camera data and processing the point cloud as an image.
 
 
 ### Running Nodes
@@ -104,6 +105,11 @@ Replace `<node_name>` with the name of the node you wish to run, such as `gps_ma
 Or if you prefer to run the dashboard viewer, which integrates all functionalities:
 ```bash
 ros2 launch astroviz dashboard_launcher.launch.py
+```
+
+For the fpv viewer, use:
+```bash
+ros2 run astroviz fpv_viewer --config /ros2_ws/src/astroviz/config/config.yaml 
 ```
 
 ## Maintainer
