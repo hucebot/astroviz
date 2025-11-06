@@ -7,8 +7,9 @@ from astroviz.plot_window import GraphViewer
 from astroviz.grid_map_window import GridMapViewer
 from astroviz.orthogonal_window import OrthogonalViewer
 from astroviz.robot_state_window import RobotStateViewer
-from astroviz.motor_state_viewer import MotorTableViewer
+from astroviz.motor_state_window import MotorTableViewer
 from astroviz.fpv_window import FPVViewer
+from astroviz.record_manager_window import RecordManagerViewer
 
 VIEW_TYPES = {
     'GPS Map': GPSMapWindow,
@@ -21,5 +22,6 @@ VIEW_TYPES = {
     'Orthogonal': OrthogonalViewer,
     'Motor State': MotorTableViewer,
     'Robot State': RobotStateViewer,
-    'FPV': FPVViewer
+    'FPV': FPVViewer,
+    'Record Manager': RecordManagerViewer,
 }

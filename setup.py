@@ -34,9 +34,12 @@ setup(
             'orthogonal_viewer = astroviz.orthogonal_window:main',
             'gstreamer_viewer = astroviz.gstreamer_window:main',
             'robot_state_viewer = astroviz.robot_state_window:main',
-            'motor_state_viewer = astroviz.motor_state_viewer:main',
-            'dummy_trajectories_publisher = astroviz.tools.dumy_trajectories:main',
+            'motor_state_viewer = astroviz.motor_state_window:main',
+            'record_manager_viewer = astroviz.record_manager_window:main',
             'fpv_viewer = astroviz.fpv_window:main',
+
+            # Dummy nodes for testing
+            'dummy_trajectories_publisher = astroviz.tools.dummy_trajectories:main',
         ],
     },
 )

@@ -14,3 +14,4 @@ This document lists all the GUI windows currently available in the `astroviz` pa
 | Gstreamer Viewer | ![Gstreamer Viewer](images/gstreamer_viewer.png) *(if exists)* | Displays video streams from the robot's cameras using GStreamer.            |
 | Robot State Viewer   | ![Robot State](images/robot_state_viewer.png)                                 | Displays the robot's state, including joint positions and visual meshes.    |
 | Motor State Viewer | ![Motor State](images/motor_state_viewer.png)                                 | Displays the state of the robot's motors, including temperature and voltage. |
+| Record Manager Viewer | ![Record Manager](images/record_manager_viewer.png)                         | Easy management for recording sessions |

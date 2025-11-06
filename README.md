@@ -93,6 +93,7 @@ This package nodes that are designed to facilitate teleoperation and visualizati
 - **robot_state_viewer**: Displays the current state of the robot related to the joint positions and transformations.
 - **motor_state_viewer**: Monitors and visualizes the state of the robot's motors, including temperature and voltage readings.
 - **fpv_viewer**: First-person view from the robot's perspective using 3d camera data and processing the point cloud as an image.
+- **record_manager_viewer**: Manages and visualizes recording sessions, allowing users to start, stop, and review recordings.
 
 
 ### Running Nodes
