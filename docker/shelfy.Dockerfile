@@ -105,3 +105,6 @@ RUN chmod +x /shelfy_dashboard_entrypoint.sh
 RUN chmod +x /zenoh_entrypoint.sh
 
 CMD ["bash"]
+
+# Copy 'audio' folder
+COPY /audio /ros2_ws/src/astroviz/audio
