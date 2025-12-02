@@ -11,6 +11,10 @@ from rclpy.time import Time
 from rclpy.duration import Duration
 from sensor_msgs.msg import PointCloud2, PointField
 
+from std_msgs.msg import (
+    Float64MultiArray, MultiArrayLayout, MultiArrayDimension, Header
+)
+
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget,
     QVBoxLayout, QComboBox, QPushButton, QDoubleSpinBox

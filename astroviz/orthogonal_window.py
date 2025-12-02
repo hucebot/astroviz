@@ -114,6 +114,7 @@ class OrthogonalViewer(QMainWindow):
         self._traj_src = None
         self._traj_dirty = False
         self.traj_items = []
+        self.traj_conf = None
 
         # ----------------------
 
@@ -707,24 +708,10 @@ class OrthogonalViewer(QMainWindow):
         self.traj_header_frame = msg.frame_id or None
 
     def _ensure_traj_items(self, T: int):
-        def color_i(i, n):
-            palette = [
-                (1.0, 0.2, 0.2, 0.9),
-                (0.2, 1.0, 0.2, 0.9),
-                (0.2, 0.6, 1.0, 0.9),
-                (1.0, 1.0, 0.2, 0.9),
-                (1.0, 0.2, 1.0, 0.9),
-                (0.2, 1.0, 1.0, 0.9),
-                (1.0, 0.6, 0.2, 0.9),
-                (0.6, 0.2, 1.0, 0.9),
-                (0.6, 1.0, 0.2, 0.9),
-                (0.2, 0.8, 0.8, 0.9),
-            ]
-            return palette[i % len(palette)]
 
         while len(self.traj_items) < T:
             i = len(self.traj_items)
-            item = gl.GLLinePlotItem(color=color_i(i, T), width=3, mode='line_strip')
+            item = gl.GLLinePlotItem(color=(1.0, 1.0, 1.0, 0.9), width=3, mode='line_strip')
             item.setVisible(True)
             self.gl_view.addItem(item)
             self.traj_items.append(item)
@@ -749,20 +736,40 @@ class OrthogonalViewer(QMainWindow):
             pass
 
         if T is None or P is None or T <= 0 or P <= 0:
-            T = 10
-            if data.size % (3 * T) == 0:
-                P = min(20, data.size // (3 * T))
-            else:
-                self.node.get_logger().warn("[TRAJ] Could not infer shape from layout. Please use 'trajectories' and 'points' labels.")
-                return
-        try:
-            arr = data.reshape(T * P, 3).reshape(T, P, 3)
-        except Exception:
-            self.node.get_logger().warn(f"[TRAJ] Shape inference failed. Data size: {data.size}, T: {T}, P: {P}.")
+            self.node.get_logger().warn("[TRAJ] Could not infer T/P from layout.")
             return
 
-        self._traj_src = arr
+        if (T * P) == 0 or data.size % (T * P) != 0:
+            self.node.get_logger().warn(
+                f"[TRAJ] Data size {data.size} not divisible by T*P={T*P}."
+            )
+            return
+
+        F = data.size // (T * P)
+        if F < 3:
+            self.node.get_logger().warn(
+                f"[TRAJ] Expected at least 3 features (xyz), got F={F}."
+            )
+            return
+
+        try:
+            arr_full = data.reshape(T, P, F)
+        except Exception as e:
+            self.node.get_logger().warn(
+                f"[TRAJ] Reshape failed: {e}. Data size: {data.size}, T: {T}, P: {P}, F: {F}."
+            )
+            return
+
+        self._traj_src = arr_full[..., :3]
+
+        if F >= 4:
+            arr_conf = arr_full[..., 3]
+            self._traj_conf = arr_conf[:, 0]
+        else:
+            self._traj_conf = None
+
         self._traj_dirty = True
+
 
 
     # ===================== FRAMES & RENDERING =====================
@@ -1344,10 +1351,8 @@ class OrthogonalViewer(QMainWindow):
         if self._traj_dirty and self._traj_src is not None and len(self._traj_src.shape) == 3:
             T, P, _ = self._traj_src.shape
 
-            # Asegura los items
             self._ensure_traj_items(T)
 
-            # Transformación al root_frame (si header trae otro frame)
             src_frame = self.traj_header_frame
             if src_frame and src_frame != self.root_frame:
                 try:
@@ -1362,16 +1367,35 @@ class OrthogonalViewer(QMainWindow):
             else:
                 T_tf = np.eye(4, dtype=np.float32)
 
-            # Aplica T_tf a cada línea y pinta
             ones = np.ones((P, 1), dtype=np.float32)
+
             for i in range(T):
-                pts = self._traj_src[i]  # (P,3)
-                hw = np.hstack((pts, ones))           # (P,4)
+                pts = self._traj_src[i]
+                hw = np.hstack((pts, ones))
                 pw = (T_tf @ hw.T).T[:, :3].astype(np.float32)
-                self.traj_items[i].setData(pos=pw)
+
+                if self._traj_conf is not None and len(self._traj_conf) == T:
+                    conf = float(self._traj_conf[i])
+
+                    if conf > 1.0:
+                        conf_norm = conf / 100.0
+                    else:
+                        conf_norm = conf
+
+                    conf_norm = max(0.0, min(1.0, conf_norm))
+
+                    r = 1.0 - conf_norm
+                    g = conf_norm
+                    b = 0.0
+                    a = 0.9
+                    color = (r, g, b, a)
+                else:
+
+                    color = (1.0, 1.0, 1.0, 0.9)
+
+                self.traj_items[i].setData(pos=pw, color=color)
 
             self._traj_dirty = False
-
 
 def main():
     rclpy.init()

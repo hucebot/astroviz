@@ -50,7 +50,7 @@ class TrajectoryNode(Node):
             (10.0, -2.0, 0.2),
             (10.5, -1.0, 0.1),
         ]
-        self.base_trajectory = [(x/10.0, y/10.0, z/10.0) for (x, y, z) in base_trajectory]
+        self.base_trajectory = [(x/10.0, y/10.0, z/5.0) for (x, y, z) in base_trajectory]
 
         self.current_step = 1
 
@@ -84,17 +84,20 @@ class TrajectoryNode(Node):
         n_pts = min(self.current_step, max_points)
 
         data = []
-        for trajectory in self.trajectories:
-            data.extend(trajectory[:n_pts])
+        for trajectory_id, trajectory in enumerate(self.trajectories):
+            #confidence between 0.00 and 100.0
+            confidence = random.uniform(60.0, 100.0)
+            for (x, y, z) in trajectory[:n_pts]:
+                data.append((x, y, z, confidence))
 
         T = self.total_trajectories
         P = n_pts
 
         layout = MultiArrayLayout()
         layout.dim = [
-            MultiArrayDimension(label='trajectories', size=T, stride=P * 3),
-            MultiArrayDimension(label='points',       size=P, stride=3),
-            MultiArrayDimension(label='xyz',          size=3, stride=1),
+            MultiArrayDimension(label='trajectories', size=T, stride=P * 4),
+            MultiArrayDimension(label='points',       size=P, stride=4),
+            MultiArrayDimension(label='xyz_conf',          size=4, stride=1),
         ]
         layout.data_offset = 0
 
