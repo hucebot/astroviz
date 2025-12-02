@@ -48,7 +48,6 @@ RUN export ROS_APT_SRC_VER=$(curl -s https://api.github.com/repos/ros-infrastruc
     rosdep update && \
     rm -rf /var/lib/apt/lists/* /tmp/ros2-apt-source.deb
 
-# Fuente automática de ROS en cada terminal
 RUN echo "source /opt/ros/$ROS_DISTRO/setup.bash" >> /etc/bash.bashrc
 
 RUN pip install --upgrade "pybind11>=2.12" "numpy<2"
@@ -71,7 +70,6 @@ RUN  apt -q -qq update && apt install -y --allow-unauthenticated \
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
       gstreamer1.0-plugins-base && \
-    # genera la registry.bin en build para no arrancar el plugin-scanner en runtime
     gst-inspect-1.0 > /dev/null && \
     rm -rf /var/lib/apt/lists/*
 
@@ -82,5 +80,8 @@ RUN echo "export FASTDDS_BUILTIN_TRANSPORTS=LARGE_DATA?max_msg_size=1MB&soets_si
 
 WORKDIR /ros2_ws/src
 RUN git clone https://github.com/CDonosoK/astroviz_interfaces.git
+
+##### Install Robot Meshes
+RUN git clone https://github.com/hucebot/g1pilot.git
 
 CMD ["bash"]
