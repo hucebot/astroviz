@@ -25,11 +25,16 @@ def DarkStyle(app: QApplication):
     dark_palette.setColor(QPalette.ColorRole.HighlightedText, Qt.GlobalColor.black)
 
     app.setPalette(dark_palette)
-    app.setStyleSheet(
-        "QToolTip { color: #ffffff; background-color: #2a82da; border: 1px solid white; }"
-        "QPushButton:checked { background-color: green; color: white; }"
-        "QPushButton { background-color: #353535; color: white; border: 1px solid #555555; padding: 4px; }"
-    )
+    # app.setStyleSheet(
+    #     "QToolTip { color: #ffffff; background-color: #2a82da; border: 1px solid white; }"
+    #     "QPushButton:checked { background-color: green; color: white; }"
+    #     "QPushButton { background-color: #353535; color: white; border: 1px solid #555555; padding: 4px; }"
+    #     "QPushButton:hover { background-color: #454545; border: 1px solid #2a82da; }"
+    #     "QPushButton:pressed { background-color: #222222; padding-left: 6px;   padding-top: 6px;}"
+    #     )
+
+
+
 
 def LightStyle(app: QApplication):
     app.setStyle(QStyleFactory.create('Fusion'))
