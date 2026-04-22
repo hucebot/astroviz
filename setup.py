@@ -1,4 +1,6 @@
 from setuptools import find_packages, setup
+import os
+from glob import glob
 
 package_name = "astroviz"
 
@@ -17,6 +19,10 @@ setup(
             [
                 "launch/dashboard_launcher.launch.py",
             ],
+        ),
+        (
+            os.path.join("share", package_name, "icons"),
+            glob("icons/*"),
         ),
     ],
     install_requires=["setuptools"],
