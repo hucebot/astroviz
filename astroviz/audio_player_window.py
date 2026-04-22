@@ -33,6 +33,16 @@ from rclpy.qos import QoSPresetProfiles
 from ament_index_python.packages import get_package_share_directory
 from astroviz.common._find import _find_pkg, _find_src_config
 
+# TODO move this to config file maybe...
+# mapping key from gamepad -> sound name
+sounds = {
+    0: "Whistle_1",
+    1: "Whistle_2",
+    2: "Hello.wav",
+    3: "Goodbye.wav",
+    4: "ErrorWindows.wav"
+}
+
 _src_config = _find_src_config()
 if _src_config:
     _CONFIG_DIR = _src_config
@@ -40,7 +50,6 @@ else:
     _CONFIG_DIR = os.path.join(
         get_package_share_directory("astroviz"), "config"
     )
-
 
 _pkg = _find_pkg()
 if _pkg:
@@ -165,15 +174,13 @@ class MainWindow(QMainWindow):
     def __init__(self, node: Node):
         super().__init__()
         self.node = node
-        self.setWindowTitle("TTS")
+        self.setWindowTitle("Audio")
         self.setWindowIcon(QIcon(os.path.join(ICONS_DIR, "astroviz_icon.png")))
 
         self.setGeometry(100, 100, 300, 150)
 
         central = QWidget()
         self.setCentralWidget(central)
-        # layout = QVBoxLayout(central)
-        # layout.setContentsMargins(0, 60, 0, 10)  # left, top, right, bottom
         layout=QGridLayout(central)
         # Topic selector
         self.combo = QComboBox(self.centralWidget())
@@ -217,7 +224,6 @@ class MainWindow(QMainWindow):
             layout.addWidget(btn, i // ncol, i%ncol)
             i+=1
         layout.setRowStretch(i//ncol+1, 1)
-        # layout.addSpacing(15)  # add some space to separate from the next part
 
         # using gamepad buttons to send audio
         self.gamepad_sub=self.node.create_subscription(
@@ -226,6 +232,12 @@ class MainWindow(QMainWindow):
             self._gamepad_cb,
             10,
         )
+        # publisher for sound bank based sounds
+        self.sound_pub = self.create_publisher(
+            String,
+            "audio_play",
+            1,
+            )
         self.gamepad_buttons = []
         self.audio_pub = None
         self._populate_topics()
@@ -242,15 +254,24 @@ class MainWindow(QMainWindow):
         for i in range(10):
             rclpy.spin_once(self.node, timeout_sec=0)
 
+    def _play_sound(self,name):
+        """ send a sound name to the sound_pub topic."""
+        s=String()
+        s.data=name
+        self.sound_pub.publish(s)
+
     def _gamepad_cb(self, msg: Joy):
+        """ callback for joystick/gamepad buttons """
         if not self.gamepad_buttons: #initial state
             self.gamepad_buttons = list(msg.buttons)
             return
 
         for i in range(len(msg.buttons)):
             if (msg.buttons[i] == 1) and (self.gamepad_buttons[i] == 0):
-                if i<len(self.audio_msgs):
-                    self.send_audio(self.audio_msgs[i],self.audio_labels[i])
+                if i in sounds.keys():
+                    self._play_sound(sounds[key])
+                # if i<len(self.audio_msgs):
+                #     self.send_audio(self.audio_msgs[i],self.audio_labels[i])
 
         self.gamepad_buttons = list(msg.buttons)
 
@@ -262,18 +283,6 @@ class MainWindow(QMainWindow):
         self.audio_pub.publish(msg)
         self.statusBar().showMessage(f"Sent {label}", 2000)
 
-    def showEvent(self, event):
-        super().showEvent(event)
-
-    def resizeEvent(self, event):
-        super().resizeEvent(event)
-
-    def _reposition_combo(self):
-        margin = 5
-        cw = self.centralWidget().width()
-        x = cw - self.combo.width() - margin
-        y = margin
-        self.combo.move(x, y)
 
     def _populate_topics(self):
         current = self.combo.currentText()
