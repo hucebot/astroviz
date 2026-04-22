@@ -2,7 +2,7 @@
 import sys
 import os
 from typing import List, Tuple
-
+from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import (
     QApplication,
     QMainWindow,
@@ -13,14 +13,16 @@ from PyQt6.QtWidgets import (
     QComboBox,
     QSizePolicy,
     QSpacerItem,
+    QGridLayout,
 )
 from PyQt6.QtGui import QIcon
 from PyQt6.QtCore import QTimer
 
 import rclpy
 from rclpy.node import Node
-from rclpy.qos import QoSPresetProfiles
+from rclpy.qos import QoSPresetProfiles,QoSProfile
 from std_msgs.msg import String
+from sensor_msgs.msg import Joy
 
 import numpy as np
 import wave
@@ -170,24 +172,16 @@ class MainWindow(QMainWindow):
 
         central = QWidget()
         self.setCentralWidget(central)
-        layout = QVBoxLayout(central)
-        layout.setContentsMargins(0, 60, 0, 10)  # left, top, right, bottom
-
+        # layout = QVBoxLayout(central)
+        # layout.setContentsMargins(0, 60, 0, 10)  # left, top, right, bottom
+        layout=QGridLayout(central)
         # Topic selector
         self.combo = QComboBox(self.centralWidget())
         self.combo.setFixedWidth(150)
         self.combo.raise_()
         self.combo.currentTextChanged.connect(self.change_topic)
-
-        # Add spacer to keep the buttons close together
-        layout.addItem(
-            QSpacerItem(
-                0,
-                0,
-                QSizePolicy.Policy.Minimum,
-                QSizePolicy.Policy.Expanding,
-            )
-        )
+        ncol=4
+        layout.addWidget(self.combo,0,0, 1,ncol,Qt.AlignmentFlag.AlignRight)
 
         # Customize status bar
         sb = self.statusBar()
@@ -212,16 +206,27 @@ class MainWindow(QMainWindow):
         for i, label in enumerate(self.audio_labels, 1):
             print(f"[{i:02d}] {label}")
 
+        i=ncol # start at second line, first is combo
         # Buttons for sending audio
         for msg, label in zip(self.audio_msgs, self.audio_labels):
             btn = QPushButton(label)
             btn.clicked.connect(
                 lambda _, msg=msg, label=label: self.send_audio(msg, label)
             )
-            layout.addWidget(btn)
+            # layout.addWidget(btn)
+            layout.addWidget(btn, i // ncol, i%ncol)
+            i+=1
+        layout.setRowStretch(i//ncol+1, 1)
+        # layout.addSpacing(15)  # add some space to separate from the next part
 
-        layout.addSpacing(15)  # add some space to separate from the next part
-
+        # using gamepad buttons to send audio
+        self.gamepad_sub=self.node.create_subscription(
+            Joy,
+            "/teleop_joy",
+            self._gamepad_cb,
+            10,
+        )
+        self.gamepad_buttons = []
         self.audio_pub = None
         self._populate_topics()
 
@@ -230,10 +235,24 @@ class MainWindow(QMainWindow):
         self.topic_timer.start(1000)
 
         self.ros_timer = QTimer(self)
-        self.ros_timer.timeout.connect(
-            lambda: rclpy.spin_once(self.node, timeout_sec=0)
-        )
+        self.ros_timer.timeout.connect(self._main_timer)
         self.ros_timer.start(50)
+
+    def _main_timer(self):
+        for i in range(10):
+            rclpy.spin_once(self.node, timeout_sec=0)
+
+    def _gamepad_cb(self, msg: Joy):
+        if not self.gamepad_buttons: #initial state
+            self.gamepad_buttons = list(msg.buttons)
+            return
+
+        for i in range(len(msg.buttons)):
+            if (msg.buttons[i] == 1) and (self.gamepad_buttons[i] == 0):
+                if i<len(self.audio_msgs):
+                    self.send_audio(self.audio_msgs[i],self.audio_labels[i])
+
+        self.gamepad_buttons = list(msg.buttons)
 
     def send_audio(self, msg: AudioStamped, label: str):
         if not self.audio_pub:
@@ -245,11 +264,9 @@ class MainWindow(QMainWindow):
 
     def showEvent(self, event):
         super().showEvent(event)
-        self._reposition_combo()
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
-        self._reposition_combo()
 
     def _reposition_combo(self):
         margin = 5
