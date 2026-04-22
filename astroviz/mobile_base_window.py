@@ -17,13 +17,13 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtGui import QPainter, QPen, QIcon
 from PyQt6.QtCore import Qt, QRect, QRectF, QTimer, QPointF
-
+from PyQt6.QtCore import QSize
 import rclpy
 from rclpy.node import Node
 from rclpy.qos import QoSProfile
 from geometry_msgs.msg import Twist
 from sensor_msgs.msg import LaserScan
-from std_msgs.msg import Int32
+from std_msgs.msg import Int32, Bool
 
 from ament_index_python.packages import get_package_share_directory
 from astroviz.utils.window_style import DarkStyle
@@ -276,15 +276,20 @@ class MainWindow(QMainWindow):
         info_row.setSpacing(12)
         self.lbl_batt = QLabel("Battery: —")
         self.lbl_ping = QLabel("Ping: —")
-        for lbl in (self.lbl_batt, self.lbl_ping):
+        self.lbl_gamepad = QLabel("Pad")
+        self.lbl_gamepad.setFixedSize(78,78)
+        self.icon_pad_pal=QIcon(os.path.join(ICONS_DIR, "pad_pal.png")).pixmap(QSize(64, 64))
+        self.icon_pad_unicorn=QIcon(os.path.join(ICONS_DIR, "pad_unicorn.png")).pixmap(QSize(64, 64))
+        for lbl in (self.lbl_batt, self.lbl_ping , self.lbl_gamepad):
             lbl.setAlignment(
                 Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
             )
             lbl.setStyleSheet(
-                "QLabel { color: white; background: #2b2b2b; border: 1px solid #444; border-radius: 6px; padding: 6px 10px; }"
+                "QLabel { color: white; background: #2b2b2b; border: 1px solid #444; border-radius: 6px; padding: 6px 6px; }"
             )
         info_row.addWidget(self.lbl_batt, 1)
         info_row.addWidget(self.lbl_ping, 1)
+        info_row.addWidget(self.lbl_gamepad, 1)
         self._root.addLayout(info_row)
 
         # ROS params
@@ -309,6 +314,14 @@ class MainWindow(QMainWindow):
             Int32,
             "/power/battery_level",
             self._battery_cb,
+            QoSProfile(depth=1),
+        )
+
+        # Spying on joy_priority to track PAL gamepad priority changes
+        self.gamepad_sub=self.node.create_subscription(
+            Bool,
+            "/joy_priority",
+            self._gamepad_cb,
             QoSProfile(depth=1),
         )
 
@@ -467,8 +480,24 @@ class MainWindow(QMainWindow):
         pct = max(0.0, min(100.0, pct))
         self.lbl_batt.setText(f"Battery: {pct:.0f}%")
 
+    def _gamepad_cb(self, msg: Bool):
+        if msg.data:
+            self.lbl_gamepad.setText(f"PAL")
+            self.lbl_gamepad.setPixmap(self.icon_pad_pal)
+            self.lbl_gamepad.setStyleSheet(
+                "QLabel { color: white; background: #2b0000; border: 1px solid #F00; border-radius: 6px; padding: 6px 6px; }"
+            )
+        else:
+            self.lbl_gamepad.setText(f"BLACK")
+            self.lbl_gamepad.setPixmap(self.icon_pad_unicorn)
+            self.lbl_gamepad.setStyleSheet(
+                "QLabel { color: white; background: #002b00; border: 1px solid #0F0; border-radius: 6px; padding: 6px 6px; }"
+            )
+
     # ---------------------- Ping ----------------------
     def _update_ping(self):
+        # XXX TODO see here
+        return
         host = (
             self.node.get_parameter("ping_host").value
             if self.node.has_parameter("ping_host")
@@ -484,8 +513,8 @@ class MainWindow(QMainWindow):
             )
             out = proc.stdout + proc.stderr
             m = re.search(r"time[=<]([0-9.]+)\s*ms", out)
-            print("out", out)
-            print("m", m)
+            # print("out", out)
+            # print("m", m)
             if proc.returncode == 0 and m:
                 ms = float(m.group(1))
                 self.lbl_ping.setText(f"Ping {host}: {ms:.1f} ms")
