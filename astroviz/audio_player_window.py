@@ -233,7 +233,7 @@ class MainWindow(QMainWindow):
             10,
         )
         # publisher for sound bank based sounds
-        self.sound_pub = self.create_publisher(
+        self.sound_pub = self.node.create_publisher(
             String,
             "audio_play",
             1,
