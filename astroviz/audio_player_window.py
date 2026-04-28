@@ -269,7 +269,7 @@ class MainWindow(QMainWindow):
         for i in range(len(msg.buttons)):
             if (msg.buttons[i] == 1) and (self.gamepad_buttons[i] == 0):
                 if i in sounds.keys():
-                    self._play_sound(sounds[key])
+                    self._play_sound(sounds[i])
                 # if i<len(self.audio_msgs):
                 #     self.send_audio(self.audio_msgs[i],self.audio_labels[i])
 
