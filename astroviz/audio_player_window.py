@@ -38,9 +38,9 @@ from astroviz.common._find import _find_pkg, _find_src_config
 sounds = {
     0: "Whistle_1",
     1: "Whistle_2",
-    2: "Hello.wav",
-    3: "Goodbye.wav",
-    4: "ErrorWindows.wav"
+    2: "Hello",
+    3: "Goodbye",
+    4: "ErrorWindows"
 }
 
 _src_config = _find_src_config()
