@@ -268,7 +268,7 @@ def main():
     host.set_row_sizes_for_column(1, [1, 1])  # camera/screen column
     host.set_row_sizes_for_column(2, [1, 1])  # cmd_vel/audio column
 
-    host.show()
+    # host.show()
     app.exec()
     rclpy.shutdown()
 
