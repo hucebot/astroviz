@@ -28,7 +28,6 @@ import numpy as np
 import wave
 from audio_common_msgs.msg import AudioStamped, Audio, AudioData, AudioInfo
 from std_msgs.msg import Header
-from rclpy.qos import QoSPresetProfiles
 
 from ament_index_python.packages import get_package_share_directory
 from astroviz.common._find import _find_pkg, _find_src_config
@@ -171,9 +170,10 @@ def build_audio_message_list(dir: str) -> Tuple[List[AudioStamped], List[str]]:
 
 
 class MainWindow(QMainWindow):
-    def __init__(self, node: Node):
+    def __init__(self, node: Node, default_topic="audio"):
         super().__init__()
         self.node = node
+        self.default_topic=default_topic # default output topic, if available
         self.setWindowTitle("Audio")
         self.setWindowIcon(QIcon(os.path.join(ICONS_DIR, "astroviz_icon.png")))
 
@@ -304,8 +304,12 @@ class MainWindow(QMainWindow):
         if current in items:
             self.combo.setCurrentText(current)
         else:
-            self.combo.setCurrentIndex(0)
-            self.change_topic("---")
+            if self.default_topic in items:
+                self.combo.setCurrentText(self.default_topic)
+                self.change_topic(self.default_topic)
+            else:
+                self.combo.setCurrentText("---")
+                self.change_topic("---")
         self.combo.blockSignals(False)
 
     def change_topic(self, topic_name: str):

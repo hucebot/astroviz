@@ -240,7 +240,7 @@ def main():
     camera_viewer = CameraViewer(node)
     cmd_vel = MobileBaseWindow(node)
     gst_webcam = ShelfyGstreamerWindow(port=5000, width=960, height=540)
-    audio = AudioWindow(node)
+    audio = AudioWindow(node,default_topic="/tts/audio")
     cafe_menu = CoffeeMenuWindow(node)
 
     # Layout:
