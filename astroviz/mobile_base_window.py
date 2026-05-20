@@ -88,7 +88,7 @@ class MobileBaseViewer(QWidget):
 
     def set_max_yaw(self, value: float):
         if value > 0:
-            self.max_y = value
+            self.max_yaw = value
             self.update()
 
     def set_scan_threshold(self, meters: float):
