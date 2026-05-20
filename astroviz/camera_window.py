@@ -77,9 +77,10 @@ def get_image_topic_type(node: Node, topic_name: str) -> str | None:
 
 
 class CameraViewer(QMainWindow):
-    def __init__(self, node: Node):
+    def __init__(self, node: Node, default_topic="image"):
         super().__init__()
         self.node = node
+        self.default_topic=default_topic # default subscribed topic, if available
         self.setWindowTitle("Camera Viewer")
         self.setWindowIcon(QIcon(os.path.join(ICONS_DIR, "astroviz_icon.png")))
 
@@ -117,11 +118,11 @@ class CameraViewer(QMainWindow):
 
         self.layout.addLayout(btn_layout)
 
-        self.topic_timer = QTimer()
+        self.topic_timer = QTimer(self)
         self.topic_timer.timeout.connect(self.update_image_topics)
         self.topic_timer.start(1000)
 
-        self.ros_timer = QTimer()
+        self.ros_timer = QTimer(self)
         self.ros_timer.timeout.connect(
             lambda: rclpy.spin_once(self.node, timeout_sec=0)
         )
@@ -156,8 +157,12 @@ class CameraViewer(QMainWindow):
         if current in items:
             self.combo.setCurrentText(current)
         else:
-            self.combo.setCurrentIndex(0)
-            self.change_image_topic("---")
+            if self.default_topic in items:
+                self.combo.setCurrentText(self.default_topic)
+                self.change_image_topic(self.default_topic)
+            else:
+                self.combo.setCurrentText("---")
+                self.change_image_topic("---")
         self.combo.blockSignals(False)
 
     def change_image_topic(self, topic_name: str):
@@ -170,9 +175,12 @@ class CameraViewer(QMainWindow):
 
         if topic_name == "---":
             return
+        msg_type = get_image_topic_type(self.node, topic_name)
+        if msg_type is None: # topic disappeared maybe
+            return
 
         self.image_sub = self.node.create_subscription(
-            get_image_topic_type(self.node, topic_name),
+            msg_type,
             topic_name,
             self.image_callback,
             QoSProfile(depth=10),
