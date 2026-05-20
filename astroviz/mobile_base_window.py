@@ -245,9 +245,11 @@ class MobileBaseViewer(QWidget):
 
 
 class MainWindow(QMainWindow):
-    def __init__(self, node: Node):
+    def __init__(self, node: Node, default_cmd_topic="/teleop_vel", default_scan_topic="/scan"):
         super().__init__()
         self.node = node
+        self.default_cmd_topic=default_cmd_topic
+        self.default_scan_topic=default_scan_topic
         self.setWindowTitle("Mobile Base Viewer")
         self.setWindowIcon(QIcon(os.path.join(ICONS_DIR, "astroviz_icon.png")))
 
@@ -418,8 +420,12 @@ class MainWindow(QMainWindow):
             if current_cmd in cmd_items:
                 self.cmd_combo.setCurrentText(current_cmd)
             else:
-                self.cmd_combo.setCurrentIndex(0)
-                self.change_cmd_topic("---")
+                if self.default_cmd_topic in cmd_items:
+                    self.cmd_combo.setCurrentText(self.default_cmd_topic)
+                    self.change_cmd_topic(self.default_cmd_topic)
+                else:
+                    self.cmd_combo.setCurrentText("---")
+                    self.change_cmd_topic("---")
             self.cmd_combo.blockSignals(False)
 
         if old_scan != scan_items:
@@ -429,8 +435,13 @@ class MainWindow(QMainWindow):
             if current_scan in scan_items:
                 self.scan_combo.setCurrentText(current_scan)
             else:
-                self.scan_combo.setCurrentIndex(0)
-                self.change_scan_topic("---")
+                if self.default_scan_topic in scan_items:
+                    self.scan_combo.setCurrentText(self.default_scan_topic)
+                    self.change_scan_topic(self.default_scan_topic)
+                else:
+                    self.scan_combo.setCurrentText("---")
+                    self.change_scan_topic("---")
+
             self.scan_combo.blockSignals(False)
 
     def change_cmd_topic(self, topic_name: str):
