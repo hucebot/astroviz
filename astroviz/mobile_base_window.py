@@ -417,7 +417,7 @@ class MainWindow(QMainWindow):
             self.cmd_combo.blockSignals(True)
             self.cmd_combo.clear()
             self.cmd_combo.addItems(cmd_items)
-            if current_cmd in cmd_items:
+            if (current_cmd!="---") and (current_cmd in cmd_items):
                 self.cmd_combo.setCurrentText(current_cmd)
             else:
                 if self.default_cmd_topic in cmd_items:
@@ -432,7 +432,7 @@ class MainWindow(QMainWindow):
             self.scan_combo.blockSignals(True)
             self.scan_combo.clear()
             self.scan_combo.addItems(scan_items)
-            if current_scan in scan_items:
+            if (current_scan!="---") and (current_scan in scan_items):
                 self.scan_combo.setCurrentText(current_scan)
             else:
                 if self.default_scan_topic in scan_items:
