@@ -226,7 +226,7 @@ class MainWindow(QMainWindow):
 
     def _cb_order(self, msg):
         # XXX TODO make it better looking :)
-        self.order_label.setText(msg.Data)
+        self.order_label.setText(msg.data)
 
     def _cb_status_cafeteria(self,msg):
         self.status_label.setText("Status: serving")
