@@ -154,7 +154,7 @@ class CameraViewer(QMainWindow):
         self.combo.blockSignals(True)
         self.combo.clear()
         self.combo.addItems(items)
-        if current in items:
+        if (current!="---") and (current in items):
             self.combo.setCurrentText(current)
         else:
             if self.default_topic in items:
