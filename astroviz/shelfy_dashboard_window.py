@@ -237,7 +237,7 @@ def main():
 
     # Build widgets
     gst_screen = GstreamerWindow(port=5004)
-    camera_viewer = CameraViewer(node,"imageXXX")
+    camera_viewer = CameraViewer(node,"/camera/color/image_raw/compressed")
     cmd_vel = MobileBaseWindow(node, "teleop_vel","scan")
     gst_webcam = ShelfyGstreamerWindow(port=5000, width=960, height=540)
     audio = AudioWindow(node,default_topic="/tts/audio")
