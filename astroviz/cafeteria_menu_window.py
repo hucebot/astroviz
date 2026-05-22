@@ -95,6 +95,17 @@ class MainWindow(QMainWindow):
         vroot.setContentsMargins(10, 10, 10, 10)
         vroot.setSpacing(10)
 
+        # NEW row 0: robot status
+        row0=QHBoxLayout()
+        self.status_label=QLabel("Status: Unknown")
+        row0.addWidget(self.status_label)
+        vroot.addLayout(row0)
+
+        row01=QHBoxLayout()
+        self.order_label=QLabel("Order: None")
+        row01.addWidget(self.order_label)
+        vroot.addLayout(row01)
+
         # Row 1: three table boxes
         row1 = QHBoxLayout()
         row1.setSpacing(10)
@@ -151,7 +162,12 @@ class MainWindow(QMainWindow):
         self.pub_reset = self.node.create_publisher(
             Empty, "/menu_node/reset", 1
         )
-
+        self.sub_order = self.node.create_subscription(
+            String, "/order", self._cb_order, qos
+        )
+        self.sub_status_cafeteria = self.node.create_subscription(
+            String, "/status_cafeteria", self._cb_status_cafeteria, qos
+        )
         # internal queue as a list of ints, unique membership
         self._queue: List[int] = []
         self._update_queue_label()
@@ -204,10 +220,20 @@ class MainWindow(QMainWindow):
 
     def _cb_done(self, _msg: Empty):
         self.box_done.flash(600)
+        self.status_label.setText("Status: fetching order")
         # You can optionally dequeue here if that's your desired behavior later
         # For now, spec says just flash Done; queue management rules can be added later.
 
+    def _cb_order(self, msg):
+        # XXX TODO make it better looking :)
+        self.order_label.setText(msg.Data)
+
+    def _cb_status_cafeteria(self,msg):
+        self.status_label.setText("Status: serving")
+
     def _on_reset_clicked(self):
+        self.status_label.setText("Status: awaiting order")
+        self.order_label.setText("")
         self.pub_reset.publish(Empty())
         popped = self._dequeue_head()
         # brief visual feedback on the button
