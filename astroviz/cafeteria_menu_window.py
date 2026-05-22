@@ -20,7 +20,7 @@ from PyQt6.QtCore import Qt, QTimer
 import rclpy
 from rclpy.node import Node
 from rclpy.qos import QoSPresetProfiles
-from std_msgs.msg import Empty
+from std_msgs.msg import Empty, String
 
 from ament_index_python.packages import get_package_share_directory
 from astroviz.common._find import _find_pkg, _find_src_config
