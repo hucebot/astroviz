@@ -290,7 +290,7 @@ class MainWindow(QMainWindow):
         future = client.call_async(Trigger.Request())
 
         # blocking, but expected. For now.
-        rclpy.spin_until_future_complete(self._node, future, timeout_sec=1.0)
+        rclpy.spin_until_future_complete(self.node, future, timeout_sec=1.0)
 
         if future.result() is None:
             msg = f"No response from '{action}' service"
