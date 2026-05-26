@@ -301,7 +301,7 @@ class MainWindow(QMainWindow):
         if checked:
             self.btn_record.setText("Recording: ON")
             self.btn_record.setStyleSheet("background-color: green; color: white;")
-            self.btn_record_service(self._start_client,"start")
+            self.recording_service(self._start_client,"start")
         else:
             self.btn_record.setText("Recording: OFF")
             self.btn_record.setStyleSheet("background-color: gray; color: white;")
@@ -309,7 +309,6 @@ class MainWindow(QMainWindow):
 
 
 # ---------------------------------- main -------------------------------------
-
 
 def main(args=None):
     from astroviz.utils.window_style import DarkStyle
