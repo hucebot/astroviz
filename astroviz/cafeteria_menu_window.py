@@ -21,6 +21,7 @@ import rclpy
 from rclpy.node import Node
 from rclpy.qos import QoSPresetProfiles
 from std_msgs.msg import Empty, String
+from std_srvs.srv import Trigger
 
 from ament_index_python.packages import get_package_share_directory
 from astroviz.common._find import _find_pkg, _find_src_config
@@ -82,6 +83,9 @@ class FlashBox(QFrame):
 
 # ------------------------------- Main Window ---------------------------------
 class MainWindow(QMainWindow):
+    START_SRV = "/bag_recorder/start"
+    STOP_SRV  = "/bag_recorder/stop"
+
     def __init__(self, node: Node):
         super().__init__()
         self.node = node
@@ -145,7 +149,32 @@ class MainWindow(QMainWindow):
         row3.addWidget(self.box_done, 2)
         vroot.addLayout(row3)
 
+        # Row 4: record
+        row4 = QHBoxLayout()
+        row4.setSpacing(10)
+        self.btn_record = QPushButton("Order finished")
+        self.btn_record.setMinimumHeight(50)
+        self.btn_record.setCheckable(True)
+        self.btn_record.setChecked(False)
+        self.btn_record.clicked.connect(self._on_record_clicked)
+        # # Make button visually consistent
+        # self.btn_reset.setStyleSheet(
+        #     """
+        #     QPushButton { background: #444; color: white; border-radius: 8px; padding: 10px; }
+        #     QPushButton:pressed { background: #666; }
+        #     """
+        # )
+        row4.addWidget(self.btn_record, 1)
+        vroot.addLayout(row4)
+
         # --- ROS pubs/subs ---
+        self._start_client = node.create_client(Trigger, self.START_SRV)
+        self._stop_client  = node.create_client(Trigger, self.STOP_SRV)
+        if not self._start_client.wait_for_service(timeout_sec=5):
+            raise RuntimeError(f"Service {self.START_SRV} not available after {timeout_sec}s")
+        if not self._stop_client.wait_for_service(timeout_sec=5):
+            raise RuntimeError(f"Service {self.STOP_SRV} not available after {timeout_sec}s")
+
         qos = QoSPresetProfiles.SENSOR_DATA.value
         self.sub_t1 = self.node.create_subscription(
             Empty, "/table_1", self._cb_t1, qos
@@ -253,6 +282,29 @@ class MainWindow(QMainWindow):
         if popped is not None:
             msg += f" · dequeued {popped}"
         self.statusBar().showMessage(msg, 1500)
+
+    def recording_service(self,client, msg):
+        # Note: assuming recording service is here, but may have disappeared...
+        # Check this ! TODO XXX
+        future = client.call_async(Trigger.Request())
+
+        # blocking, but expected. For now.
+        rclpy.spin_until_future_complete(self._node, future, timeout_sec=1.0)
+
+        if future.result() is None:
+            msg = f"No response from '{action}' service"
+            print(msg)
+            # XXX TODO
+
+    def _on_record_clicked(self,checked):
+        if checked:
+            self.button.setText("Recording: ON")
+            self.button.setStyleSheet("background-color: green; color: white;")
+            self.recording_service(self._start_client,"start")
+        else:
+            self.button.setText("Recording: OFF")
+            self.button.setStyleSheet("background-color: gray; color: white;")
+            self.recording_service(self._stop_client,"stop")
 
 
 # ---------------------------------- main -------------------------------------
