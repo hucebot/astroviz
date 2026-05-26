@@ -110,15 +110,17 @@ class MainWindow(QMainWindow):
         row01.addWidget(self.order_label)
         vroot.addLayout(row01)
 
-        # Row 1: three table boxes
+        # Row 1: three table boxes + user done box
         row1 = QHBoxLayout()
         row1.setSpacing(10)
         self.box_t1 = FlashBox("Table 1")
         self.box_t2 = FlashBox("Table 2")
         self.box_t3 = FlashBox("Table 3")
+        self.box_done = FlashBox("User done")
         row1.addWidget(self.box_t1)
         row1.addWidget(self.box_t2)
         row1.addWidget(self.box_t3)
+        row1.addWidget(self.box_done)
         vroot.addLayout(row1)
 
         # Row 2: queue display
@@ -129,7 +131,7 @@ class MainWindow(QMainWindow):
         row2.addWidget(self.queue_label)
         vroot.addLayout(row2)
 
-        # Row 3: left Reset button, right Done box
+        # Row 3: left Reset button
         row3 = QHBoxLayout()
         row3.setSpacing(10)
         self.btn_reset = QPushButton("Order finished")
@@ -145,8 +147,7 @@ class MainWindow(QMainWindow):
         )
         row3.addWidget(self.btn_reset, 1)
 
-        self.box_done = FlashBox("User done")
-        row3.addWidget(self.box_done, 2)
+
         vroot.addLayout(row3)
 
         # Row 4: record
@@ -158,13 +159,7 @@ class MainWindow(QMainWindow):
         self.btn_record.setCheckable(True)
         self.btn_record.setChecked(False)
         self.btn_record.clicked.connect(self._on_record_clicked)
-        # # Make button visually consistent
-        # self.btn_reset.setStyleSheet(
-        #     """
-        #     QPushButton { background: #444; color: white; border-radius: 8px; padding: 10px; }
-        #     QPushButton:pressed { background: #666; }
-        #     """
-        # )
+
         row4.addWidget(self.btn_record, 1)
         vroot.addLayout(row4)
 
