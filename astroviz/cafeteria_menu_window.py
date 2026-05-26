@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import sys
 import os
+import json
 from typing import List
 
 from PyQt6.QtWidgets import (
@@ -13,8 +14,10 @@ from PyQt6.QtWidgets import (
     QLabel,
     QFrame,
     QSizePolicy,
+    QGridLayout,
+    QStyle,QSpinBox,QStyleOption
 )
-from PyQt6.QtGui import QIcon
+from PyQt6.QtGui import QIcon, QPainter
 from PyQt6.QtCore import Qt, QTimer
 
 import rclpy
@@ -80,6 +83,57 @@ class FlashBox(QFrame):
         self._apply_bg(self._flash_bg)
         QTimer.singleShot(msec, lambda: self._apply_bg(self._normal_bg))
 
+class GridCell(QWidget):
+    def __init__(self, key, text, icon: QIcon = None, parent=None):
+        super().__init__(parent)
+        self.key=key
+        self.init_ui(text, icon)
+
+    def init_ui(self, text, icon):
+        main_layout = QVBoxLayout(self)
+        main_layout.setContentsMargins(5, 5, 5, 5)
+        top_layout = QHBoxLayout()
+
+        self.icon_label = QLabel()
+        if icon and not icon.isNull():
+            self.icon_label.setPixmap(icon.pixmap(32, 32))
+        else:
+            # Fallback default icon if none is provided
+            default_icon = self.style().standardIcon(QStyle.StandardPixmap.SP_ComputerIcon)
+            self.icon_label.setPixmap(default_icon.pixmap(32, 32))
+        top_layout.addWidget(self.icon_label)
+
+        self.value_input = QSpinBox()
+        self.value_input.setRange(0, 4)
+        self.value_input.valueChanged.connect(self._on_user_changed)
+        top_layout.addWidget(self.value_input)
+
+        main_layout.addLayout(top_layout)
+
+        self.fixed_label = QLabel(text)
+        main_layout.addWidget(self.fixed_label)
+
+        self.setStyleSheet("GridCell { border: 1px solid #333; background-color: transparent; }")
+
+    def paintEvent(self, event):
+        opt = QStyleOption()
+        opt.initFrom(self)
+        p = QPainter(self)
+        self.style().drawPrimitive(QStyle.PrimitiveElement.PE_Widget, opt, p, self)
+
+    def _on_user_changed(self, value):
+        """Triggered only when the value is manually modified by the user."""
+        self.setStyleSheet("GridCell { border: 1px solid #333; background-color: #401010; }")
+
+    def set_value(self, value):
+        if 0 <= value <= 4:
+            self.value_input.blockSignals(True)
+            self.value_input.setValue(value)
+            self.value_input.blockSignals(False)
+            self.setStyleSheet("GridCell { border: 1px solid #333; background-color: transparent; }")
+
+    def get_order(self):
+        return self.key, self.value_input.value()
 
 # ------------------------------- Main Window ---------------------------------
 class MainWindow(QMainWindow):
@@ -110,6 +164,29 @@ class MainWindow(QMainWindow):
         row01.addWidget(self.order_label)
         vroot.addLayout(row01)
 
+        row02=QHBoxLayout()
+        self.cells = {}
+        grid_layout = QGridLayout()
+        initial_data = ["croissant","espresso","long_coffee","pain_au_chocolat","pain_aux_raisins","tea"]
+
+        for i, text in enumerate(initial_data):
+            row = i // 3
+            col = i % 3
+            cell = GridCell(text,text) # TODO XXX add icon
+            grid_layout.addWidget(cell, row, col)
+            self.cells[text]=cell
+        grid_layout.setColumnStretch(0, 1)
+        grid_layout.setColumnStretch(1, 1)
+        grid_layout.setColumnStretch(2, 1)
+
+        row02.addLayout(grid_layout)
+
+        self.btn_resend = QPushButton("Re-send order")
+        self.btn_resend.setMinimumHeight(50)
+        self.btn_resend.setCheckable(False)
+        self.btn_resend.clicked.connect(self._on_resend_clicked)
+        row02.addWidget(self.btn_resend)
+        vroot.addLayout(row02)
         # Row 1: three table boxes + user done box
         row1 = QHBoxLayout()
         row1.setSpacing(10)
@@ -167,9 +244,9 @@ class MainWindow(QMainWindow):
         self._start_client = node.create_client(Trigger, self.START_SRV)
         self._stop_client  = node.create_client(Trigger, self.STOP_SRV)
         if not self._start_client.wait_for_service(timeout_sec=5):
-            raise RuntimeError(f"Service {self.START_SRV} not available after {timeout_sec}s")
+            raise RuntimeError(f"Service {self.START_SRV} not available after 5s")
         if not self._stop_client.wait_for_service(timeout_sec=5):
-            raise RuntimeError(f"Service {self.STOP_SRV} not available after {timeout_sec}s")
+            raise RuntimeError(f"Service {self.STOP_SRV} not available after 5s")
 
         qos = QoSPresetProfiles.SENSOR_DATA.value
         self.sub_t1 = self.node.create_subscription(
@@ -189,6 +266,9 @@ class MainWindow(QMainWindow):
         )
         self.sub_order = self.node.create_subscription(
             String, "/order", self._cb_order, qos
+        )
+        self.pub_order = self.node.create_publisher(
+            String, "/order", 1
         )
         self.sub_status_cafeteria = self.node.create_subscription(
             String, "/status_cafeteria", self._cb_status_cafeteria, qos
@@ -252,6 +332,10 @@ class MainWindow(QMainWindow):
     def _cb_order(self, msg):
         # XXX TODO make it better looking :)
         self.order_label.setText(msg.data)
+        order=json.loads(msg.data)
+        for k in order:
+            self.cells[k].set_value(order[k])
+
 
     def _cb_status_cafeteria(self,msg):
         self.status_label.setText("Status: serving")
@@ -278,6 +362,18 @@ class MainWindow(QMainWindow):
         if popped is not None:
             msg += f" · dequeued {popped}"
         self.statusBar().showMessage(msg, 1500)
+
+    def _on_resend_clicked(self):
+        msg=String()
+        order={}
+        for c in self.cells:
+            k,v=self.cells[c].get_order()
+            order[k]=v
+        msg.data=json.dumps(order)
+        self.pub_order.publish(msg)
+        status_msg=f"re-sent: {msg.data}"
+        self.statusBar().showMessage(status_msg, 1500)
+
 
     def recording_service(self,client, msg):
         # Note: assuming recording service is here, but may have disappeared...
