@@ -293,7 +293,7 @@ class MainWindow(QMainWindow):
         rclpy.spin_until_future_complete(self.node, future, timeout_sec=1.0)
 
         if future.result() is None:
-            msg = f"No response from '{action}' service"
+            msg = f"No response from '{msg}' service"
             print(msg)
             # XXX TODO
 
