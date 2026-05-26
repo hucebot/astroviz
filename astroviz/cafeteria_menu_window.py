@@ -152,7 +152,8 @@ class MainWindow(QMainWindow):
         # Row 4: record
         row4 = QHBoxLayout()
         row4.setSpacing(10)
-        self.btn_record = QPushButton("Order finished")
+        self.btn_record = QPushButton("Recording: OFF") # TODO: check...
+        self.btn_record.setStyleSheet("background-color: gray; color: white;")
         self.btn_record.setMinimumHeight(50)
         self.btn_record.setCheckable(True)
         self.btn_record.setChecked(False)
@@ -298,12 +299,12 @@ class MainWindow(QMainWindow):
 
     def _on_record_clicked(self,checked):
         if checked:
-            self.button.setText("Recording: ON")
-            self.button.setStyleSheet("background-color: green; color: white;")
-            self.recording_service(self._start_client,"start")
+            self.btn_record.setText("Recording: ON")
+            self.btn_record.setStyleSheet("background-color: green; color: white;")
+            self.btn_record_service(self._start_client,"start")
         else:
-            self.button.setText("Recording: OFF")
-            self.button.setStyleSheet("background-color: gray; color: white;")
+            self.btn_record.setText("Recording: OFF")
+            self.btn_record.setStyleSheet("background-color: gray; color: white;")
             self.recording_service(self._stop_client,"stop")
 
 
