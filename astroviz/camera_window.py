@@ -101,22 +101,22 @@ class CameraViewer(QMainWindow):
         self.image_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.layout.addWidget(self.image_label)
 
-        btn_layout = QHBoxLayout()
-        self.btn_left = QPushButton("⟲ 90° Left")
-        self.btn_left.clicked.connect(self.rotate_left)
-        btn_layout.addWidget(
-            self.btn_left, alignment=Qt.AlignmentFlag.AlignLeft
-        )
-
-        btn_layout.addStretch()
-
-        self.btn_right = QPushButton("90° Right ⟳")
-        self.btn_right.clicked.connect(self.rotate_right)
-        btn_layout.addWidget(
-            self.btn_right, alignment=Qt.AlignmentFlag.AlignRight
-        )
-
-        self.layout.addLayout(btn_layout)
+        # btn_layout = QHBoxLayout()
+        # self.btn_left = QPushButton("⟲ 90° Left")
+        # self.btn_left.clicked.connect(self.rotate_left)
+        # btn_layout.addWidget(
+        #     self.btn_left, alignment=Qt.AlignmentFlag.AlignLeft
+        # )
+        #
+        # btn_layout.addStretch()
+        #
+        # self.btn_right = QPushButton("90° Right ⟳")
+        # self.btn_right.clicked.connect(self.rotate_right)
+        # btn_layout.addWidget(
+        #     self.btn_right, alignment=Qt.AlignmentFlag.AlignRight
+        # )
+        #
+        # self.layout.addLayout(btn_layout)
 
         self.topic_timer = QTimer(self)
         self.topic_timer.timeout.connect(self.update_image_topics)
