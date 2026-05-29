@@ -173,8 +173,8 @@ class MainWindow(QMainWindow):
         for i, text in enumerate(initial_data):
             row = i // 3
             col = i % 3
-            icon=QIcon(os.path.join(ICONS_DIR, f"{text}.png"))
-            cell = GridCell(text,text,icon) # TODO XXX add icon
+            icon=QIcon(os.path.join(cfg["config_path"], f"{text}.png"))
+            cell = GridCell(text,text,icon)
             grid_layout.addWidget(cell, row, col)
             self.cells[text]=cell
         grid_layout.setColumnStretch(0, 1)
@@ -424,6 +424,7 @@ def main(args=None):
     config_path = os.environ.get("CONFIG_PATH", ".")
     cfg=read_json_config_file(node,os.path.join(config_path,"config.json")) # main expe config file
     node.get_logger().info(f"config found in {config_path}")
+    cfg["config_path"]=config_path
     window = MainWindow(node,cfg)
     window.resize(700, 400)
     window.show()
