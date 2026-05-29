@@ -249,6 +249,7 @@ def main():
     config_path = os.environ.get("CONFIG_PATH", ".")
     cfg=read_json_config_file(node,os.path.join(config_path,"config.json")) # main expe config file
     node.get_logger().info(f"config found in {config_path}")
+    cfg["config_path"]=config_path
     host = MultiWindowHost(grid_shape=(2, 3))
     host.showMaximized()
 
