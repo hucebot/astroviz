@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import sys
 import os
+import json
 from typing import Optional, Tuple, List
 
 from PyQt6.QtWidgets import (
@@ -11,6 +12,7 @@ from PyQt6.QtWidgets import (
     QSplitter,
     QSizePolicy,
     QFrame,
+    QLayout,
 )
 from PyQt6.QtGui import QIcon
 from PyQt6.QtCore import Qt, QSize
@@ -203,6 +205,11 @@ class MultiWindowHost(QMainWindow):
         self._owned_widgets.append(w)
         self._grid.set_widget(row, col, w)
 
+    def add_layout(self, layout: QLayout, row: int, col: int):
+        container = QWidget(self._central)
+        container.setLayout(layout)
+        self.add_widget(container, row, col)
+
     # passthrough helpers
     def set_col_sizes(self, sizes: List[int]):
         self._grid.set_col_sizes(sizes)
@@ -221,6 +228,14 @@ class MultiWindowHost(QMainWindow):
                 pass
         super().closeEvent(event)
 
+def read_json_config_file(node,path):
+    try:
+        with open(path, "r") as f:
+            cfg = json.load(f)
+    except Exception as e:
+        node.get_logger().error(f"{e}")
+        exit(1)
+    return cfg
 
 def main():
     from astroviz.utils.window_style import DarkStyle
@@ -231,7 +246,9 @@ def main():
 
     # Shared node
     node = rclpy.create_node("astroviz_dashboard")
-
+    config_path = os.environ.get("CONFIG_PATH", ".")
+    cfg=read_json_config_file(node,os.path.join(config_path,"config.json")) # main expe config file
+    node.get_logger().info(f"config found in {config_path}")
     host = MultiWindowHost(grid_shape=(2, 3))
     host.showMaximized()
 
@@ -241,17 +258,19 @@ def main():
     cmd_vel = MobileBaseWindow(node, "/teleop_vel","/scan")
     gst_webcam = ShelfyGstreamerWindow(port=5000, width=960, height=540)
     audio = AudioWindow(node,default_topic="/tts/audio")
-    cafe_menu = CoffeeMenuWindow(node)
+    cafe_menu = CoffeeMenuWindow(node,cfg)
 
     # Layout:
     # top_row: webcam, camera, cmd_vel
     host.add_widget(gst_webcam, row=0, col=0)
     host.add_widget(camera_viewer, row=0, col=1)
     host.add_widget(cmd_vel, row=0, col=2)
-    # bottom_row: coffe menu, screen, audio
+    # bottom_row: coffe menu, screen, audio+stuff
     host.add_widget(cafe_menu, row=1, col=0)
     host.add_widget(gst_screen, row=1, col=1)
-    host.add_widget(audio, row=1, col=2)
+    v2=QVBoxLayout()
+    v2.addWidget(audio)
+    host.add_layout(v2, row=1, col=2)
 
     # # Example: add the TTSWindow
     # from astroviz.tts_window import MainWindow as TTSWindow

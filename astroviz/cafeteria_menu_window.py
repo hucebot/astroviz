@@ -140,7 +140,7 @@ class MainWindow(QMainWindow):
     START_SRV = "/bag_recorder/start"
     STOP_SRV  = "/bag_recorder/stop"
 
-    def __init__(self, node: Node):
+    def __init__(self, node, cfg):
         super().__init__()
         self.node = node
         self.setWindowTitle("Menu Monitor")
@@ -167,12 +167,14 @@ class MainWindow(QMainWindow):
         row02=QHBoxLayout()
         self.cells = {}
         grid_layout = QGridLayout()
-        initial_data = ["croissant","espresso","long_coffee","pain_au_chocolat","pain_aux_raisins","tea"]
+        initial_data = cfg["products"]
+        # ["croissant","espresso","long_coffee","pain_au_chocolat","pain_aux_raisins","tea"]
 
         for i, text in enumerate(initial_data):
             row = i // 3
             col = i % 3
-            cell = GridCell(text,text) # TODO XXX add icon
+            icon=QIcon(os.path.join(ICONS_DIR, f"{text}.png"))
+            cell = GridCell(text,text,icon) # TODO XXX add icon
             grid_layout.addWidget(cell, row, col)
             self.cells[text]=cell
         grid_layout.setColumnStretch(0, 1)
@@ -343,6 +345,8 @@ class MainWindow(QMainWindow):
     def _on_reset_clicked(self):
         self.status_label.setText("Status: awaiting order")
         self.order_label.setText("")
+        for c in self.cells:
+            self.cells[c].set_value(0)
         self.pub_reset.publish(Empty())
         popped = self._dequeue_head()
         # brief visual feedback on the button
@@ -400,6 +404,14 @@ class MainWindow(QMainWindow):
 
 
 # ---------------------------------- main -------------------------------------
+def read_json_config_file(node,path):
+    try:
+        with open(path, "r") as f:
+            cfg = json.load(f)
+    except Exception as e:
+        node.get_logger().error(f"{e}")
+        exit(1)
+    return cfg
 
 def main(args=None):
     from astroviz.utils.window_style import DarkStyle
@@ -408,7 +420,11 @@ def main(args=None):
     app = QApplication(sys.argv)
     DarkStyle(app)
     node = rclpy.create_node("menu_monitor_node")
-    window = MainWindow(node)
+
+    config_path = os.environ.get("CONFIG_PATH", ".")
+    cfg=read_json_config_file(node,os.path.join(config_path,"config.json")) # main expe config file
+    node.get_logger().info(f"config found in {config_path}")
+    window = MainWindow(node,cfg)
     window.resize(700, 400)
     window.show()
     app.exec()
