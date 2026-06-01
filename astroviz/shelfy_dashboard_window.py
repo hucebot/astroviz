@@ -257,7 +257,8 @@ def main():
     gst_screen = GstreamerWindow(port=5004)
     camera_viewer = CameraViewer(node,"/camera/color/image_raw/compressed")
     cmd_vel = MobileBaseWindow(node, "/teleop_vel","/scan")
-    gst_webcam = ShelfyGstreamerWindow(port=5000, width=960, height=540)
+    # port used to be 5001, but now 5000 is recorded by recorder and resent to 5001
+    gst_webcam = ShelfyGstreamerWindow(port=5001, width=960, height=540)
     audio = AudioWindow(node,default_topic="/tts/audio")
     cafe_menu = CoffeeMenuWindow(node,cfg)
 
