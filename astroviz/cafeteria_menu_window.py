@@ -135,6 +135,27 @@ class GridCell(QWidget):
     def get_order(self):
         return self.key, self.value_input.value()
 
+class StateBox(QFrame):
+    def __init__(self, name: str, parent=None):
+        super().__init__(parent)
+        self._name = name
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(8, 8, 8, 8)
+        self._label = QLabel(f"{name}\n—")
+        self._label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(self._label)
+        self.setMinimumSize(100, 80)
+        self._set_active(False)
+
+    def _set_active(self, active: bool):
+        color = "#2e7d32" if active else "#444"
+        self.setStyleSheet(f"QFrame {{ background: {color}; border-radius: 8px; }}"
+                           f"QLabel {{ color: white; font-weight: 500; }}")
+
+    def update_state(self, status: str, count: int):
+        self._label.setText(f"{self._name}\n#{count}")
+        self._set_active(status == "active")
+
 # ------------------------------- Main Window ---------------------------------
 class MainWindow(QMainWindow):
     START_SRV = "/bag_recorder/start"
@@ -154,15 +175,25 @@ class MainWindow(QMainWindow):
         vroot.setSpacing(10)
 
         # NEW row 0: robot status
-        row0=QHBoxLayout()
-        self.status_label=QLabel("Status: Unknown")
-        row0.addWidget(self.status_label)
-        vroot.addLayout(row0)
+        row_pipeline = QHBoxLayout()
+        row_pipeline.setSpacing(8)
+        self.box_streamdeck = StateBox("streamdeck")
+        self.box_tablet     = StateBox("tablet")
+        self.box_teleop     = StateBox("teleop")
+        row_pipeline.addWidget(self.box_streamdeck)
+        row_pipeline.addWidget(self.box_tablet)
+        row_pipeline.addWidget(self.box_teleop)
+        vroot.addLayout(row_pipeline)
+        #
+        # row0=QHBoxLayout()
+        # self.status_label=QLabel("Status: Unknown")
+        # row0.addWidget(self.status_label)
+        # vroot.addLayout(row0)
 
-        row01=QHBoxLayout()
-        self.order_label=QLabel("Order: None")
-        row01.addWidget(self.order_label)
-        vroot.addLayout(row01)
+        # row01=QHBoxLayout()
+        # self.order_label=QLabel("Order: None")
+        # row01.addWidget(self.order_label)
+        # vroot.addLayout(row01)
 
         row02=QHBoxLayout()
         self.cells = {}
@@ -186,7 +217,7 @@ class MainWindow(QMainWindow):
         self.btn_resend = QPushButton("Re-send order")
         self.btn_resend.setMinimumHeight(50)
         self.btn_resend.setCheckable(False)
-        self.btn_resend.clicked.connect(self._on_resend_clicked)
+        # self.btn_resend.clicked.connect(self._on_resend_clicked) # XXX TODO
         row02.addWidget(self.btn_resend)
         vroot.addLayout(row02)
         # Row 1: three table boxes + user done box
@@ -216,12 +247,14 @@ class MainWindow(QMainWindow):
         self.btn_reset = QPushButton("Order finished")
         self.btn_reset.setMinimumHeight(50)
         self.btn_reset.setCheckable(False)
+        self.btn_reset.setEnabled(False) # only meaningful when "active"
         self.btn_reset.clicked.connect(self._on_reset_clicked)
         # Make button visually consistent
         self.btn_reset.setStyleSheet(
             """
             QPushButton { background: #444; color: white; border-radius: 8px; padding: 10px; }
             QPushButton:pressed { background: #666; }
+            QPushButton:disabled { background: #2a2a2a; color: #666; }
             """
         )
         row3.addWidget(self.btn_reset, 1)
@@ -260,21 +293,52 @@ class MainWindow(QMainWindow):
         self.sub_t3 = self.node.create_subscription(
             Empty, "/table_3", self._cb_t3, qos
         )
-        self.sub_done = self.node.create_subscription(
-            Empty, "/menu_node/done", self._cb_done, qos
+
+        self._status="done"
+        self._count=0
+        self._order={}
+        self._state_pub = self.node.create_publisher(
+            String,
+            "teleop_state",
+            1,
+            )
+        self._state_sub = self.node.create_subscription(
+            String,
+            "tablet_state",
+            self._tablet_state_cb,
+            1,
         )
-        self.pub_reset = self.node.create_publisher(
-            Empty, "/menu_node/reset", 1
+        self._streamdeck_state_sub = self.node.create_subscription(
+            String,
+            "streamdeck_state",
+            self._streamdeck_state_cb,
+            1,
         )
-        self.sub_order = self.node.create_subscription(
-            String, "/order", self._cb_order, qos
+        # self, so not needed but...
+        self._teleop_state_sub = self.node.create_subscription(
+            String,
+            "teleop_state",
+            self._teleop_state_cb,
+            1,
         )
-        self.pub_order = self.node.create_publisher(
-            String, "/order", 1
-        )
-        self.sub_status_cafeteria = self.node.create_subscription(
-            String, "/status_cafeteria", self._cb_status_cafeteria, qos
-        )
+
+        self.heartbeat_timer = self.node.create_timer(1.0, self._send_state)
+
+        # self.sub_done = self.node.create_subscription(
+        #     Empty, "/menu_node/done", self._cb_done, qos
+        # )
+        # self.pub_reset = self.node.create_publisher(
+        #     Empty, "/menu_node/reset", 1
+        # )
+        # self.sub_order = self.node.create_subscription(
+        #     String, "/order", self._cb_order, qos
+        # )
+        # self.pub_order = self.node.create_publisher(
+        #     String, "/order", 1
+        # )
+        # self.sub_status_cafeteria = self.node.create_subscription(
+        #     String, "/status_cafeteria", self._cb_status_cafeteria, qos
+        # )
         # internal queue as a list of ints, unique membership
         self._queue: List[int] = []
         self._update_queue_label()
@@ -290,6 +354,36 @@ class MainWindow(QMainWindow):
         self.statusBar().setStyleSheet(
             "QStatusBar { background: #3a3a3a; color: lightgrey; border-top: 1px solid #444; }"
         )
+
+    def _send_state(self):
+        s=String()
+        state={}
+        state["status"]=self._status
+        state["order"]=self._order
+        state["count"]=self._count
+        s.data=json.dumps(state)
+        self._state_pub.publish(s)
+
+    def _tablet_state_cb(self,msg):
+        state=json.loads(msg.data)
+        self.box_tablet.update_state(state["status"], state["count"])
+        if state["status"]=="done":
+            if state["count"]>self._count:
+                self._count=state["count"]
+                self._status="active"
+                self._order = state["order"]
+                self.btn_reset.setEnabled(True)
+                # XXX TODO update menu here... en fait il faudrait récup dès l'envoi de streamdeck (pas tablet, meme si c'est le même...)
+
+    def _streamdeck_state_cb(self,msg):
+        state=json.loads(msg.data)
+        self.box_streamdeck.update_state(state["status"], state["count"])
+        for k in state["order"]:
+             self.cells[k].set_value(state["order"][k])
+
+    def _teleop_state_cb(self,msg):
+        state=json.loads(msg.data)
+        self.box_teleop.update_state(state["status"], state["count"])
 
     # ------------------------- UI + ROS behaviors -------------------------
     def _enqueue_table(self, table_id: int):
@@ -325,58 +419,61 @@ class MainWindow(QMainWindow):
         self.box_t3.flash(500)
         self._enqueue_table(3)
 
-    def _cb_done(self, _msg: Empty):
-        self.box_done.flash(600)
-        self.status_label.setText("Status: fetching order")
-        # You can optionally dequeue here if that's your desired behavior later
-        # For now, spec says just flash Done; queue management rules can be added later.
+    # def _cb_done(self, _msg: Empty):
+    #     self.box_done.flash(600)
+    #     self.status_label.setText("Status: fetching order")
+    #     # You can optionally dequeue here if that's your desired behavior later
+    #     # For now, spec says just flash Done; queue management rules can be added later.
 
-    def _cb_order(self, msg):
-        # XXX TODO make it better looking :)
-        self.order_label.setText(msg.data)
-        order=json.loads(msg.data)
-        for k in order:
-            self.cells[k].set_value(order[k])
+    # def _cb_order(self, msg):
+    #     # XXX TODO make it better looking :)
+    #     self.order_label.setText(msg.data)
+    #     order=json.loads(msg.data)
+    #     for k in order:
+    #         self.cells[k].set_value(order[k])
 
 
-    def _cb_status_cafeteria(self,msg):
-        self.status_label.setText("Status: serving")
+    # def _cb_status_cafeteria(self,msg):
+    #     self.status_label.setText("Status: serving")
 
     def _on_reset_clicked(self):
-        self.status_label.setText("Status: awaiting order")
-        self.order_label.setText("")
-        for c in self.cells:
-            self.cells[c].set_value(0)
-        self.pub_reset.publish(Empty())
-        popped = self._dequeue_head()
-        # brief visual feedback on the button
-        self.btn_reset.setStyleSheet(
-            """
-            QPushButton { background: #2e7d32; color: white; border-radius: 8px; padding: 10px; }
-            """
-        )
-        QTimer.singleShot(
-            300,
-            lambda: self.btn_reset.setStyleSheet(
-                "QPushButton { background: #444; color: white; border-radius: 8px; padding: 10px; }\n"
-                "QPushButton:pressed { background: #666; }"
-            ),
-        )
-        msg = "Published /menu_node/reset"
-        if popped is not None:
-            msg += f" · dequeued {popped}"
-        self.statusBar().showMessage(msg, 1500)
+        if self._status=="active":
+            self.btn_reset.setEnabled(False)
+            self._status="done"
+            # self.status_label.setText("Status: awaiting order")
+            # self.order_label.setText("")
+            for c in self.cells:
+                self.cells[c].set_value(0)
+            # self.pub_reset.publish(Empty())
+            popped = self._dequeue_head()
+            # brief visual feedback on the button
+            self.btn_reset.setStyleSheet(
+                """
+                QPushButton { background: #2e7d32; color: white; border-radius: 8px; padding: 10px; }
+                """
+            )
+            QTimer.singleShot(
+                300,
+                lambda: self.btn_reset.setStyleSheet(
+                    "QPushButton { background: #444; color: white; border-radius: 8px; padding: 10px; }\n"
+                    "QPushButton:pressed { background: #666; }"
+                ),
+            )
+            msg = "Done "
+            if popped is not None:
+                msg += f" · dequeued {popped}"
+            self.statusBar().showMessage(msg, 1500)
 
-    def _on_resend_clicked(self):
-        msg=String()
-        order={}
-        for c in self.cells:
-            k,v=self.cells[c].get_order()
-            order[k]=v
-        msg.data=json.dumps(order)
-        self.pub_order.publish(msg)
-        status_msg=f"re-sent: {msg.data}"
-        self.statusBar().showMessage(status_msg, 1500)
+    # def _on_resend_clicked(self):
+    #     msg=String()
+    #     order={}
+    #     for c in self.cells:
+    #         k,v=self.cells[c].get_order()
+    #         order[k]=v
+    #     msg.data=json.dumps(order)
+    #     self.pub_order.publish(msg)
+    #     status_msg=f"re-sent: {msg.data}"
+    #     self.statusBar().showMessage(status_msg, 1500)
 
 
     def recording_service(self,client, msg):
