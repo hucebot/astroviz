@@ -345,15 +345,17 @@ class MainWindow(QMainWindow):
 
         # keep rclpy spinning
         self.ros_timer = QTimer(self)
-        self.ros_timer.timeout.connect(
-            lambda: rclpy.spin_once(self.node, timeout_sec=0)
-        )
+        self.ros_timer.timeout.connect(self.ros_cb)
         self.ros_timer.start(30)
 
         # status bar styling (optional)
         self.statusBar().setStyleSheet(
             "QStatusBar { background: #3a3a3a; color: lightgrey; border-top: 1px solid #444; }"
         )
+
+    def ros_cb(self):
+        for i in range(10):
+            rclpy.spin_once(self.node, timeout_sec=0)
 
     def _send_state(self):
         s=String()
@@ -373,7 +375,6 @@ class MainWindow(QMainWindow):
                 self._status="active"
                 self._order = state["order"]
                 self.btn_reset.setEnabled(True)
-                # XXX TODO update menu here... en fait il faudrait récup dès l'envoi de streamdeck (pas tablet, meme si c'est le même...)
 
     def _streamdeck_state_cb(self,msg):
         state=json.loads(msg.data)
