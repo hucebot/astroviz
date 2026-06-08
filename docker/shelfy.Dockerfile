@@ -44,7 +44,9 @@ RUN export ROS_APT_SRC_VER=$(curl -s https://api.github.com/repos/ros-infrastruc
       ros-dev-tools \
       ros-${ROS_DISTRO}-cv-bridge \
       ros-${ROS_DISTRO}-rviz2 \
-      ros-${ROS_DISTRO}-rviz-imu-plugin && \
+      ros-${ROS_DISTRO}-rviz-imu-plugin \
+      ros-${ROS_DISTRO}-ffmpeg-image-transport \
+      && \
     rosdep init && \
     rosdep update && \
     rm -rf /var/lib/apt/lists/* /tmp/ros2-apt-source.deb
