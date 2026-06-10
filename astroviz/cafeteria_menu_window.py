@@ -293,7 +293,8 @@ class MainWindow(QMainWindow):
         self.sub_t3 = self.node.create_subscription(
             Empty, "/table_3", self._cb_t3, qos
         )
-
+        self.sub_remote = self.node.create_subscription(String,"/remote_button",
+                                                        self.cb_remote,10)
         self._status="done"
         self._count=0
         self._order={}
@@ -419,6 +420,9 @@ class MainWindow(QMainWindow):
     def _cb_t3(self, _msg: Empty):
         self.box_t3.flash(500)
         self._enqueue_table(3)
+
+    def cb_remoted(self,msg):
+        print(msg.data)
 
     # def _cb_done(self, _msg: Empty):
     #     self.box_done.flash(600)
