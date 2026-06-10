@@ -295,6 +295,7 @@ class MainWindow(QMainWindow):
         )
         self.sub_remote = self.node.create_subscription(String,"/remote_button",
                                                         self.cb_remote,10)
+        self.pub_audio = self.node.create_publisher(String, "/teleop/audio_play",10)
         self._status="done"
         self._count=0
         self._order={}
@@ -422,6 +423,9 @@ class MainWindow(QMainWindow):
         self._enqueue_table(3)
 
     def cb_remote(self,msg):
+        audio=String()
+        audio.data="Hello"
+        self.pub_audio.publish(audio)
         print(msg.data)
 
     # def _cb_done(self, _msg: Empty):
