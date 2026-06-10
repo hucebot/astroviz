@@ -235,7 +235,7 @@ class MainWindow(QMainWindow):
         # publisher for sound bank based sounds
         self.sound_pub = self.node.create_publisher(
             String,
-            "audio_play",
+            "/tts/audio_play",
             1,
             )
         self.gamepad_buttons = []
