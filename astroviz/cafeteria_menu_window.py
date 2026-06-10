@@ -421,7 +421,7 @@ class MainWindow(QMainWindow):
         self.box_t3.flash(500)
         self._enqueue_table(3)
 
-    def cb_remoted(self,msg):
+    def cb_remote(self,msg):
         print(msg.data)
 
     # def _cb_done(self, _msg: Empty):
