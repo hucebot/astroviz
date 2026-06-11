@@ -163,6 +163,8 @@ class StateBox(QFrame):
 class MainWindow(QMainWindow):
     START_SRV = "/bag_recorder/start"
     STOP_SRV  = "/bag_recorder/stop"
+    START_SRV_JETSON = "/jetson_bag_recorder/start"
+    STOP_SRV_JETSON = "/jetson_bag_recorder/stop"
 
     def __init__(self, node, cfg):
         super().__init__()
@@ -281,10 +283,17 @@ class MainWindow(QMainWindow):
         # --- ROS pubs/subs ---
         self._start_client = node.create_client(Trigger, self.START_SRV)
         self._stop_client  = node.create_client(Trigger, self.STOP_SRV)
-        if not self._start_client.wait_for_service(timeout_sec=5):
-            raise RuntimeError(f"Service {self.START_SRV} not available after 5s")
-        if not self._stop_client.wait_for_service(timeout_sec=5):
-            raise RuntimeError(f"Service {self.STOP_SRV} not available after 5s")
+        self._start_jetson_client = node.create_client(Trigger, self.START_SRV_JETSON)
+        self._stop_jetson_client = node.create_client(Trigger, self.STOP_SRV_JETSON)
+
+        # if not self._start_client.wait_for_service(timeout_sec=5):
+        #     raise RuntimeError(f"Service {self.START_SRV} not available after 5s")
+        # if not self._stop_client.wait_for_service(timeout_sec=5):
+        #     raise RuntimeError(f"Service {self.STOP_SRV} not available after 5s")
+        # if not self._start_jetson_client.wait_for_service(timeout_sec=5):
+        #     raise RuntimeError(f"Service {self.START_JETSON_SRV} not available after 5s")
+        # if not self._stop_jetson_client.wait_for_service(timeout_sec=5):
+        #     raise RuntimeError(f"Service {self.STOP_JETSON_SRV} not available after 5s")
 
         qos = QoSPresetProfiles.SENSOR_DATA.value
         self.sub_t1 = self.node.create_subscription(
@@ -535,11 +544,12 @@ class MainWindow(QMainWindow):
             self.btn_record.setText("Recording: ON")
             self.btn_record.setStyleSheet("background-color: green; color: white;")
             self.recording_service(self._start_client,"start")
+            self.recording_service(self._start_jetson_client,"start jetson")
         else:
             self.btn_record.setText("Recording: OFF")
             self.btn_record.setStyleSheet("background-color: gray; color: white;")
             self.recording_service(self._stop_client,"stop")
-
+            self.recording_service(self._stop_jetson_client,"stop jetson")
 
 # ---------------------------------- main -------------------------------------
 def read_json_config_file(node,path):
