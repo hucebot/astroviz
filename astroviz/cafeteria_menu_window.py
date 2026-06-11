@@ -2,6 +2,9 @@
 import sys
 import os
 import json
+import time
+import datetime
+
 from typing import List
 
 from PyQt6.QtWidgets import (
@@ -299,6 +302,11 @@ class MainWindow(QMainWindow):
         self._status="done"
         self._count=0
         self._order={}
+        self.history={}
+        self.current_order_count=0 # real one starts at 1
+        now = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        self.log_file_name=f"/data/orders_{now}.log"
+
         self._state_pub = self.node.create_publisher(
             String,
             "teleop_state",
@@ -356,7 +364,7 @@ class MainWindow(QMainWindow):
         )
 
     def ros_cb(self):
-        for i in range(10):
+        for i in range(2):
             rclpy.spin_once(self.node, timeout_sec=0)
 
     def _send_state(self):
@@ -380,6 +388,9 @@ class MainWindow(QMainWindow):
 
     def _streamdeck_state_cb(self,msg):
         state=json.loads(msg.data)
+        if state["count"]>self.current_order_count:
+            self.current_order_count=state["count"] # detect order in progress
+            self.current_order_start=time.time()
         self.box_streamdeck.update_state(state["status"], state["count"])
         for k in state["order"]:
              self.cells[k].set_value(state["order"][k])
@@ -444,10 +455,22 @@ class MainWindow(QMainWindow):
 
     # def _cb_status_cafeteria(self,msg):
     #     self.status_label.setText("Status: serving")
+    def flatten_history(self,h):
+        l=[h["count"], h["time_start"], h["time_end"], h["table"]]
+        keys=sorted(h["order"].keys())
+        l+=[ h["order"][k] for k in keys]
+        return ",".join(map(str,l)) + "\n"
 
     def _on_reset_clicked(self):
         if self._status=="active":
             self.btn_reset.setEnabled(False)
+            # order is now complete.
+            self.history[self.current_order_count]= {
+                "count": self.current_order_count,
+                "order": self._order,
+                "time_start": self.current_order_start,
+                "time_end": time.time(),
+            }
             self._status="done"
             # self.status_label.setText("Status: awaiting order")
             # self.order_label.setText("")
@@ -471,7 +494,16 @@ class MainWindow(QMainWindow):
             msg = "Done "
             if popped is not None:
                 msg += f" · dequeued {popped}"
+                self.history[self.current_order_count]["table"]=popped
+            else:
+                self.history[self.current_order_count]["table"]=0
             self.statusBar().showMessage(msg, 1500)
+
+            with open(self.log_file_name, "a", encoding="utf-8") as f:
+                line=self.flatten_history(self.history[self.current_order_count])
+                print(line)
+                # TODO GUI too
+                f.write(line)
 
     # def _on_resend_clicked(self):
     #     msg=String()
