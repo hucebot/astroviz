@@ -316,11 +316,24 @@ class MainWindow(QMainWindow):
         now = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
         self.log_file_name=f"/data/orders_{now}.log"
 
+        self.current_task={}
+        self.current_task["task"]="order"
+        self.current_task["count"]=1
+        self.current_task["retry"]=0
+
         self._state_pub = self.node.create_publisher(
             String,
             "teleop_state",
             1,
             )
+
+        # Main state (== current task)
+        self._control_state_pub = self.node.create_publisher(
+            String,
+            "control_state",
+            1,
+            )
+
         self._state_sub = self.node.create_subscription(
             String,
             "tablet_state",
@@ -384,16 +397,27 @@ class MainWindow(QMainWindow):
         state["count"]=self._count
         s.data=json.dumps(state)
         self._state_pub.publish(s)
+        self._send_control_state()
+
+    def _send_control_state(self):
+        s=String()
+        s.data=json.dumps(self.current_task)
+        self._control_state_pub.publish(s)
 
     def _tablet_state_cb(self,msg):
         state=json.loads(msg.data)
         self.box_tablet.update_state(state["status"], state["count"])
-        if state["status"]=="done":
-            if state["count"]>self._count:
-                self._count=state["count"]
-                self._status="active"
-                self._order = state["order"]
-                self.btn_reset.setEnabled(True)
+        # detect end of task
+        if (state["status"]=="done") and (self.current_task["task"]=="fetch") and (state["count"]==self.current_task["count"]):
+            self.current_task["task"]="serve"
+            # shortcut, no need to wait for control, we're in the same process..;
+            self._count=state["count"]
+            self._status="active"
+            self._order = state["order"]
+            self.btn_reset.setEnabled(True)
+
+        # if state["status"]=="done":
+        #     if state["count"]>self._count:
 
     def _streamdeck_state_cb(self,msg):
         state=json.loads(msg.data)
@@ -403,6 +427,11 @@ class MainWindow(QMainWindow):
         self.box_streamdeck.update_state(state["status"], state["count"])
         for k in state["order"]:
              self.cells[k].set_value(state["order"][k])
+        # detect end of task
+        if (state["status"]=="done") and (self.current_task["task"]=="order") and (state["count"]==self.current_task["count"]):
+            self.current_task["task"]="fetch"
+            self.current_task["order"]=state["order"]
+
 
     def _teleop_state_cb(self,msg):
         state=json.loads(msg.data)
@@ -481,6 +510,9 @@ class MainWindow(QMainWindow):
                 "time_end": time.time(),
             }
             self._status="done"
+            self.current_task["task"]="order"
+            self.current_task["count"]+=1 # count++ here: no race condition ( if order and old count, seen as old/dispoable packet)
+
             # self.status_label.setText("Status: awaiting order")
             # self.order_label.setText("")
             for c in self.cells:
