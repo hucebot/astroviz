@@ -25,7 +25,6 @@ from sensor_msgs.msg import Image, CompressedImage
 from cv_bridge import CvBridge
 from ament_index_python.packages import get_package_share_directory
 
-
 from astroviz.utils.window_style import DarkStyle
 from astroviz.common._find import _find_pkg, _find_src_config
 
@@ -36,7 +35,6 @@ else:
     _CONFIG_DIR = os.path.join(
         get_package_share_directory("astroviz"), "config"
     )
-
 
 _pkg = _find_pkg()
 if _pkg:
@@ -86,8 +84,6 @@ class CameraViewer(QMainWindow):
 
         self.bridge = CvBridge()
         self.image_sub = None
-        self.rotation_angle = 0
-
         self.central = QWidget()
         self.setCentralWidget(self.central)
         self.layout = QVBoxLayout(self.central)
@@ -101,23 +97,6 @@ class CameraViewer(QMainWindow):
         self.image_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.layout.addWidget(self.image_label)
 
-        # btn_layout = QHBoxLayout()
-        # self.btn_left = QPushButton("⟲ 90° Left")
-        # self.btn_left.clicked.connect(self.rotate_left)
-        # btn_layout.addWidget(
-        #     self.btn_left, alignment=Qt.AlignmentFlag.AlignLeft
-        # )
-        #
-        # btn_layout.addStretch()
-        #
-        # self.btn_right = QPushButton("90° Right ⟳")
-        # self.btn_right.clicked.connect(self.rotate_right)
-        # btn_layout.addWidget(
-        #     self.btn_right, alignment=Qt.AlignmentFlag.AlignRight
-        # )
-        #
-        # self.layout.addLayout(btn_layout)
-
         self.topic_timer = QTimer(self)
         self.topic_timer.timeout.connect(self.update_image_topics)
         self.topic_timer.start(1000)
@@ -127,12 +106,6 @@ class CameraViewer(QMainWindow):
             lambda: rclpy.spin_once(self.node, timeout_sec=0)
         )
         self.ros_timer.start(30)
-
-    def rotate_left(self):
-        self.rotation_angle = (self.rotation_angle - 90) % 360
-
-    def rotate_right(self):
-        self.rotation_angle = (self.rotation_angle + 90) % 360
 
     def update_image_topics(self):
         current = self.combo.currentText()
@@ -195,13 +168,6 @@ class CameraViewer(QMainWindow):
                 )
             if msg_name == "CompressedImage":
                 cv_image = self.bridge.compressed_imgmsg_to_cv2(msg)
-
-            if self.rotation_angle == 90:
-                cv_image = cv2.rotate(cv_image, cv2.ROTATE_90_CLOCKWISE)
-            elif self.rotation_angle == 180:
-                cv_image = cv2.rotate(cv_image, cv2.ROTATE_180)
-            elif self.rotation_angle == 270:
-                cv_image = cv2.rotate(cv_image, cv2.ROTATE_90_COUNTERCLOCKWISE)
 
             height, width, channel = cv_image.shape
             bytes_per_line = 3 * width
