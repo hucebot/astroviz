@@ -273,16 +273,15 @@ class MainWindow(QMainWindow):
         self.scan_combo.setFixedWidth(180)
         self.scan_combo.currentTextChanged.connect(self.change_scan_topic)
 
-        # ---------------- Bottom info row (Battery | Ping) ----------------
+        # ---------------- Bottom info row (Battery | pad) ----------------
         info_row = QHBoxLayout()
         info_row.setSpacing(12)
         self.lbl_batt = QLabel("Battery: —")
-        self.lbl_ping = QLabel("Ping: —")
         self.lbl_gamepad = QLabel("Pad")
         self.lbl_gamepad.setFixedSize(78,78)
         self.icon_pad_pal=QIcon(os.path.join(ICONS_DIR, "pad_pal.png")).pixmap(QSize(64, 64))
         self.icon_pad_unicorn=QIcon(os.path.join(ICONS_DIR, "pad_unicorn.png")).pixmap(QSize(64, 64))
-        for lbl in (self.lbl_batt, self.lbl_ping , self.lbl_gamepad):
+        for lbl in (self.lbl_batt, self.lbl_gamepad):
             lbl.setAlignment(
                 Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
             )
@@ -290,7 +289,6 @@ class MainWindow(QMainWindow):
                 "QLabel { color: white; background: #2b2b2b; border: 1px solid #444; border-radius: 6px; padding: 6px 6px; }"
             )
         info_row.addWidget(self.lbl_batt, 1)
-        info_row.addWidget(self.lbl_ping, 1)
         info_row.addWidget(self.lbl_gamepad, 1)
         self._root.addLayout(info_row)
 
@@ -299,8 +297,6 @@ class MainWindow(QMainWindow):
         self.node.declare_parameter("max_y", 0.5)
         self.node.declare_parameter("max_yaw", 1.0)
         self.node.declare_parameter("scan_threshold", 1.0)
-        self.node.declare_parameter("ping_host", "192.168.8.167")
-
         th = (
             self.node.get_parameter("scan_threshold").value
             if self.node.has_parameter("scan_threshold")
@@ -344,11 +340,6 @@ class MainWindow(QMainWindow):
         self.param_timer = QTimer(self)
         self.param_timer.timeout.connect(self._poll_params)
         self.param_timer.start(1000)
-
-        # Ping timer
-        self.ping_timer = QTimer(self)
-        self.ping_timer.timeout.connect(self._update_ping)
-        self.ping_timer.start(2000)
 
         # Viewer refresh timer
         self.refresh_timer = QTimer(self)
@@ -504,35 +495,6 @@ class MainWindow(QMainWindow):
             self.lbl_gamepad.setStyleSheet(
                 "QLabel { color: white; background: #002b00; border: 1px solid #0F0; border-radius: 6px; padding: 6px 6px; }"
             )
-
-    # ---------------------- Ping ----------------------
-    def _update_ping(self):
-        # XXX TODO see here
-        return
-        host = (
-            self.node.get_parameter("ping_host").value
-            if self.node.has_parameter("ping_host")
-            else "8.8.8.8"
-        )
-        try:
-            # Linux/Unix ping one packet with 1s timeout
-            proc = subprocess.run(
-                ["/bin/sh", "-c", f"ping -c 1 -W 1 {host}"],
-                capture_output=True,
-                text=True,
-                timeout=2.5,
-            )
-            out = proc.stdout + proc.stderr
-            m = re.search(r"time[=<]([0-9.]+)\s*ms", out)
-            # print("out", out)
-            # print("m", m)
-            if proc.returncode == 0 and m:
-                ms = float(m.group(1))
-                self.lbl_ping.setText(f"Ping {host}: {ms:.1f} ms")
-            else:
-                self.lbl_ping.setText(f"Ping {host}: timeout")
-        except Exception:
-            self.lbl_ping.setText(f"Ping {host}: error")
 
 
 def main(args=None):
