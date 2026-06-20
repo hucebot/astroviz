@@ -222,7 +222,7 @@ class MainWindow(QMainWindow):
         self.btn_resend = QPushButton("Re-send order")
         self.btn_resend.setMinimumHeight(50)
         self.btn_resend.setCheckable(False)
-        # self.btn_resend.clicked.connect(self._on_resend_clicked) # XXX TODO
+        self.btn_resend.clicked.connect(self._on_resend_clicked)
         row02.addWidget(self.btn_resend)
         vroot.addLayout(row02)
         # Row 1: three table boxes + user done box
@@ -553,16 +553,19 @@ class MainWindow(QMainWindow):
     def _on_dequeue_clicked(self):
         self._dequeue_head()
 
-    # def _on_resend_clicked(self):
-    #     msg=String()
-    #     order={}
-    #     for c in self.cells:
-    #         k,v=self.cells[c].get_order()
-    #         order[k]=v
-    #     msg.data=json.dumps(order)
-    #     self.pub_order.publish(msg)
-    #     status_msg=f"re-sent: {msg.data}"
-    #     self.statusBar().showMessage(status_msg, 1500)
+    def _on_resend_clicked(self):
+        msg=String()
+        state={}
+        state["task"]="resend_order"
+        order={}
+        for c in self.cells:
+            k,v=self.cells[c].get_order()
+            order[k]=v
+        state["order"]=order
+        msg.data=json.dumps(state)
+        self._control_state_pub.publish(msg) # one shot / override
+        status_msg=f"re-sent: {order}"
+        self.statusBar().showMessage(status_msg, 1500)
 
 
     def recording_service(self,client, msg):
