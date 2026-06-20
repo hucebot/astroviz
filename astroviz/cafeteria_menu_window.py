@@ -244,6 +244,10 @@ class MainWindow(QMainWindow):
         self.queue_label = FlashBox("Table call queue: —")
         self.queue_label.setMinimumHeight(50)
         row2.addWidget(self.queue_label)
+        self.queue_btn= QPushButton("dequeue head")
+        self.queue_btn.setCheckable(False)
+        self.queue_btn.clicked.connect(self._on_dequeue_clicked)
+        row2.addWidget(self.queue_btn)
         vroot.addLayout(row2)
 
         # Row 3: left Reset button
@@ -545,6 +549,9 @@ class MainWindow(QMainWindow):
                 print(line)
                 # TODO GUI too
                 f.write(line)
+
+    def _on_dequeue_clicked(self):
+        self._dequeue_head()
 
     # def _on_resend_clicked(self):
     #     msg=String()
