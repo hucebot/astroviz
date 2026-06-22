@@ -14,6 +14,7 @@ from PyQt6.QtWidgets import (
     QSizePolicy,
     QSpacerItem,
     QGridLayout,
+    QLabel,
 )
 from PyQt6.QtGui import QIcon
 from PyQt6.QtCore import QTimer
@@ -190,6 +191,16 @@ class MainWindow(QMainWindow):
         ncol=4
         layout.addWidget(self.combo,0,0, 1,ncol,Qt.AlignmentFlag.AlignRight)
 
+        l=QLabel("local audio topic:")
+
+        self.control_combo = QComboBox(self.centralWidget())
+        self.control_combo.setFixedWidth(150)
+        self.control_combo.raise_()
+        self.control_combo.addItems(["/audio_table_1","/audio_table_2", "/audio_table_3","/audio"])
+        self.control_combo.currentTextChanged.connect(self.control_change_topic)
+        layout.addWidget(l,1,0, 1,1,Qt.AlignmentFlag.AlignRight)
+        layout.addWidget(self.control_combo,1,1, 1,ncol-1,Qt.AlignmentFlag.AlignRight)
+
         # Customize status bar
         sb = self.statusBar()
         sb.setSizeGripEnabled(True)
@@ -213,7 +224,7 @@ class MainWindow(QMainWindow):
         for i, label in enumerate(self.audio_labels, 1):
             print(f"[{i:02d}] {label}")
 
-        i=ncol # start at second line, first is combo
+        i=ncol*2 # start at third line, first is combo, second is control_combo
         # Buttons for sending audio
         for msg, label in zip(self.audio_msgs, self.audio_labels):
             btn = QPushButton(label)
@@ -236,6 +247,12 @@ class MainWindow(QMainWindow):
         self.sound_pub = self.node.create_publisher(
             String,
             "/tts/audio_play",
+            1,
+            )
+        # publisher to control audio output (local audio player)
+        self.control_pub = self.node.create_publisher(
+            String,
+            "/teleop/audio_control",
             1,
             )
         self.gamepad_buttons = []
@@ -327,6 +344,10 @@ class MainWindow(QMainWindow):
             AudioStamped, topic_name, QoSPresetProfiles.SENSOR_DATA.value
         )
 
+    def control_change_topic(self, topic_name):
+        msg=String()
+        msg.data=topic_name
+        self.control_pub.publish(msg)
 
 def main(args=None):
     from astroviz.utils.window_style import DarkStyle
