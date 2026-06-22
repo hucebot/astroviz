@@ -558,9 +558,15 @@ class MainWindow(QMainWindow):
         state={}
         state["task"]="resend_order"
         order={}
+        total=0
         for c in self.cells:
             k,v=self.cells[c].get_order()
             order[k]=v
+            total+=v
+        if total==0:
+            status_msg="Nothing to send"
+            self.statusBar().showMessage(status_msg, 1500)
+            return
         state["order"]=order
         msg.data=json.dumps(state)
         self._control_state_pub.publish(msg) # one shot / override
