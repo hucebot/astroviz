@@ -36,11 +36,15 @@ from astroviz.common._find import _find_pkg, _find_src_config
 # TODO move this to config file maybe...
 # mapping key from gamepad -> sound name
 sounds = {
-    0: "Whistle_1",
-    1: "Whistle_2",
-    2: "Hello",
-    3: "Goodbye",
-    4: "ErrorWindows"
+    0: "Whistle_1", # A
+    1: "Whistle_2", # B
+    # 2 ignored
+    3: "ErrorWindows", # X
+    4: "Goodbye", # Y
+    5: "Hello", # L
+    6: "Hello_2", # R
+    7: "Idle", # -
+    8: "Idle", # +
 }
 
 _src_config = _find_src_config()
